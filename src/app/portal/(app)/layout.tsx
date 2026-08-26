@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import { FileCheck2, LayoutDashboard, LifeBuoy, PenTool } from "lucide-react";
+import { FileCheck2, FolderKanban, LayoutDashboard, LifeBuoy, PenTool } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import type { NavItem } from "@/components/sidebar-nav";
 import { db } from "@/db";
@@ -20,6 +20,7 @@ export default async function PortalAppLayout({ children }: { children: ReactNod
 
   const navItems: NavItem[] = [
     { href: "/portal", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/portal/projects", label: "Projects", icon: FolderKanban },
     { href: "/portal/approvals", label: "Approvals", icon: FileCheck2 },
     { href: "/portal/designs", label: "Designs", icon: PenTool },
     { href: "/portal/support", label: "Support", icon: LifeBuoy },

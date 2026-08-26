@@ -149,6 +149,60 @@ export const onboardingSubmissions = pgTable("onboarding_submission", {
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });
 
+export const projects = pgTable(
+  "project",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    clientAccountId: text("client_account_id").notNull().references(() => clientAccounts.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    projectType: text("project_type").notNull().default("brochure_site"),
+    status: text("status").notNull().default("active"),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("project_client_idx").on(t.clientAccountId)],
+);
+
+export const projectMilestones = pgTable("project_milestone", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  status: taskStatus("status").notNull().default("open"),
+  dueDate: timestamp("due_date", { mode: "date" }),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+export const contentSubmissions = pgTable("content_submission", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  submittedByUserId: text("submitted_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  pageTitle: text("page_title").notNull(),
+  body: text("body").notNull(),
+  status: text("status").notNull().default("draft"),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const projectUpdates = pgTable("project_update", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  authorUserId: text("author_user_id").references(() => users.id, { onDelete: "set null" }),
+  updateType: text("update_type").notNull().default("note"),
+  body: text("body").notNull(),
+  sentiment: text("sentiment"),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const designVersions = pgTable("design_version", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  designAssetId: text("design_asset_id").notNull().references(() => designAssets.id, { onDelete: "cascade" }),
+  version: integer("version").notNull().default(1),
+  imageUrl: text("image_url").notNull(),
+  status: approvalStatus("status").notNull().default("pending"),
+  approvedByUserId: text("approved_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  approvedAt: timestamp("approved_at", { mode: "date" }),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
 // ---------------------------------------------------------------------------
 // Tasks / needs
 // ---------------------------------------------------------------------------
@@ -411,6 +465,29 @@ export const clientAccountsRelations = relations(clientAccounts, ({ one, many })
   documents: many(documents),
   designAssets: many(designAssets),
   tickets: many(tickets),
+  projects: many(projects),
+}));
+
+export const projectsRelations = relations(projects, ({ one, many }) => ({
+  clientAccount: one(clientAccounts, {
+    fields: [projects.clientAccountId],
+    references: [clientAccounts.id],
+  }),
+  milestones: many(projectMilestones),
+  contentSubmissions: many(contentSubmissions),
+  updates: many(projectUpdates),
+}));
+
+export const projectMilestonesRelations = relations(projectMilestones, ({ one }) => ({
+  project: one(projects, { fields: [projectMilestones.projectId], references: [projects.id] }),
+}));
+
+export const contentSubmissionsRelations = relations(contentSubmissions, ({ one }) => ({
+  project: one(projects, { fields: [contentSubmissions.projectId], references: [projects.id] }),
+}));
+
+export const projectUpdatesRelations = relations(projectUpdates, ({ one }) => ({
+  project: one(projects, { fields: [projectUpdates.projectId], references: [projects.id] }),
 }));
 
 export const accountManagerAssignmentsRelations = relations(accountManagerAssignments, ({ one }) => ({

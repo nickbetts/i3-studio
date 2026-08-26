@@ -63,6 +63,14 @@ async function main() {
     title: "Studio Director",
   });
 
+  await upsertUser({
+    email: "admin@i3media.net",
+    name: "i3 Media Admin",
+    password: "i3gangang",
+    role: "admin",
+    title: "Studio Administrator",
+  });
+
   const managerId = await upsertUser({
     email: "manager@i3studio.com",
     name: "Alex Manager",
