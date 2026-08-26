@@ -1,8 +1,10 @@
-import "dotenv/config";
+import { config } from "dotenv";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db } from "./index";
 import { accountManagerAssignments, clientAccounts, organizations, users } from "./schema";
+
+config({ path: ".env.local" });
 
 async function upsertUser(input: {
   email: string;
