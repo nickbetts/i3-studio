@@ -1,0 +1,1 @@
+ALTER TABLE "allocation" ADD COLUMN "end_date" timestamp;

@@ -397,6 +397,7 @@ export const allocations = pgTable(
     title: text("title").notNull(),
     // Day the block belongs to; time-of-day stored as minutes from midnight.
     date: timestamp("date", { mode: "date" }).notNull(),
+    endDate: timestamp("end_date", { mode: "date" }),
     startMinute: integer("start_minute").notNull().default(540),
     endMinute: integer("end_minute").notNull().default(1020),
     notes: text("notes"),

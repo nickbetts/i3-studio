@@ -29,6 +29,13 @@
       "when": 1787751355842,
       "tag": "0003_known_warbound",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787752147501,
+      "tag": "0004_skinny_scarlet_witch",
+      "breakpoints": true
     }
   ]
 }
