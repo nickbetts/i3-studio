@@ -24,12 +24,14 @@ export default async function PortalAppLayout({ children }: { children: ReactNod
     { href: "/portal/designs", label: "Designs", icon: "designs" },
     { href: "/portal/support", label: "Support", icon: "support" },
   ];
+  const visibleTabs = Array.isArray(account?.visibleTabs) ? account.visibleTabs : navItems.map((item) => item.icon);
+  const visibleItems = navItems.filter((item) => visibleTabs.includes(item.icon));
 
   return (
     <AppShell
       brand={account?.name ?? "Client Portal"}
       roleLabel="Client"
-      navItems={navItems}
+      navItems={visibleItems}
       user={{ name: user.name, email: user.email }}
     >
       {children}

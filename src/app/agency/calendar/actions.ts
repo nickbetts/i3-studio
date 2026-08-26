@@ -25,3 +25,11 @@ export async function deleteAllocation(allocationId: string): Promise<void> {
   await auditLog({ actorUserId: actor.id, action: "allocation.deleted", entityType: "allocation", entityId: allocationId });
   revalidatePath("/agency/calendar");
 }
+
+export async function updateAllocation(allocationId: string, startMinute: number, endMinute: number, date?: string): Promise<void> {
+  const actor = await requireAdmin();
+  if (startMinute < 0 || endMinute > 1440 || endMinute <= startMinute) return;
+  await db.update(allocations).set({ startMinute, endMinute, ...(date ? { date: new Date(`${date}T12:00:00`) } : {}) }).where(eq(allocations.id, allocationId));
+  await auditLog({ actorUserId: actor.id, action: "allocation.updated", entityType: "allocation", entityId: allocationId, metadata: { startMinute, endMinute } });
+  revalidatePath("/agency/calendar");
+}

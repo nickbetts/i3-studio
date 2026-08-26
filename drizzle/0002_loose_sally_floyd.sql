@@ -1,0 +1,2 @@
+ALTER TABLE "client_account" ADD COLUMN "visible_tabs" jsonb DEFAULT '["dashboard","projects","approvals","designs","support"]'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "user" ADD COLUMN "permissions" jsonb DEFAULT '{}'::jsonb NOT NULL;

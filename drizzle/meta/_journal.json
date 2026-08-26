@@ -15,6 +15,13 @@
       "when": 1787750326429,
       "tag": "0001_majestic_masked_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787751086850,
+      "tag": "0002_loose_sally_floyd",
+      "breakpoints": true
     }
   ]
 }

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SidebarNav, type NavItem } from "@/components/sidebar-nav";
 import { SignOutButton } from "@/components/sign-out-button";
+import { PreviewMenu } from "@/components/preview-menu";
 
 type AppShellProps = {
   brand: string;
@@ -9,6 +10,7 @@ type AppShellProps = {
   user: { name?: string | null; email?: string | null };
   roleLabel: string;
   children: ReactNode;
+  preview?: boolean;
 };
 
 function initials(nameOrEmail: string) {
@@ -19,7 +21,7 @@ function initials(nameOrEmail: string) {
   return base.slice(0, 2).toUpperCase();
 }
 
-export function AppShell({ brand, navItems, user, roleLabel, children }: AppShellProps) {
+export function AppShell({ brand, navItems, user, roleLabel, children, preview = false }: AppShellProps) {
   const display = user.name || user.email || "User";
 
   return (
@@ -40,6 +42,7 @@ export function AppShell({ brand, navItems, user, roleLabel, children }: AppShel
               <div className="truncate text-xs text-muted-foreground">{user.email}</div>
             </div>
           </div>
+          {preview ? <PreviewMenu /> : null}
           <SignOutButton />
         </div>
       </aside>

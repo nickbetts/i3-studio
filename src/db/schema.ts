@@ -47,6 +47,7 @@ export const users = pgTable("user", {
   clientAccountId: text("client_account_id"),
   phone: text("phone"),
   title: text("title"),
+  permissions: jsonb("permissions").notNull().default({}),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 
@@ -113,6 +114,7 @@ export const clientAccounts = pgTable(
     slug: text("slug").notNull(),
     status: clientStatus("status").notNull().default("onboarding"),
     onboardingCompletedAt: timestamp("onboarding_completed_at", { mode: "date" }),
+    visibleTabs: jsonb("visible_tabs").notNull().default(["dashboard", "projects", "approvals", "designs", "support"]),
     createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("client_account_org_slug_idx").on(t.organizationId, t.slug)],
