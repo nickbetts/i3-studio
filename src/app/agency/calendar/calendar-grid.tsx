@@ -35,13 +35,21 @@ function blockHours(block: Block) {
   return (durationDays(block) * 1440 + block.endMinute - block.startMinute) / 60;
 }
 
-export function CalendarGrid({ members, blocks }: { members: Member[]; blocks: Block[] }) {
+export function CalendarGrid({ members, blocks, canEdit }: { members: Member[]; blocks: Block[]; canEdit: boolean }) {
   const [view, setView] = useState<"week" | "month">("week");
   const [date, setDate] = useState(new Date());
   const [localBlocks, setLocalBlocks] = useState(blocks);
   const [editing, setEditing] = useState<Block | null>(null);
   const [pending, startTransition] = useTransition();
   const resizingRef = useRef(false);
+
+  // Re-sync with server data whenever an allocation is added, edited or removed.
+  const signature = blocks.map((b) => `${b.id}:${new Date(b.date).getTime()}:${b.endDate ? new Date(b.endDate).getTime() : 0}:${b.startMinute}:${b.endMinute}:${b.memberUserId}:${b.title}`).join("|");
+  const [prevSignature, setPrevSignature] = useState(signature);
+  if (signature !== prevSignature) {
+    setPrevSignature(signature);
+    setLocalBlocks(blocks);
+  }
 
   const weekStart = startOfWeek(date, { weekStartsOn: 1 });
   const days = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
@@ -54,6 +62,7 @@ export function CalendarGrid({ members, blocks }: { members: Member[]; blocks: B
   }
 
   function drop(memberId: string, event: React.DragEvent<HTMLDivElement>) {
+    if (!canEdit) return;
     const id = event.dataTransfer.getData("block-id");
     const block = localBlocks.find((item) => item.id === id);
     if (!block) return;
@@ -158,7 +167,7 @@ export function CalendarGrid({ members, blocks }: { members: Member[]; blocks: B
               <div key={key} className={`min-h-28 border-b border-r p-2 ${day.getMonth() !== date.getMonth() ? "bg-muted/30 text-muted-foreground" : ""}`}>
                 <p className="text-xs font-medium">{format(day, "EEE d")}</p>
                 {items.map((item) => (
-                  <button type="button" key={item.id} className="mt-1 block w-full truncate rounded bg-primary/15 px-1 py-0.5 text-left text-[10px]" onClick={() => setEditing(item)}>
+                  <button type="button" key={item.id} className="mt-1 block w-full truncate rounded bg-primary/15 px-1 py-0.5 text-left text-[10px]" onClick={() => canEdit && setEditing(item)}>
                     {item.title}
                   </button>
                 ))}
@@ -208,25 +217,27 @@ export function CalendarGrid({ members, blocks }: { members: Member[]; blocks: B
                       return (
                         <div
                           key={block.id}
-                          draggable
+                          draggable={canEdit}
                           onDragStart={(event) => {
-                            if (resizingRef.current) {
+                            if (!canEdit || resizingRef.current) {
                               event.preventDefault();
                               return;
                             }
                             event.dataTransfer.setData("block-id", block.id);
                           }}
-                          onClick={() => setEditing(block)}
-                          className="absolute top-2 flex cursor-grab flex-col justify-center overflow-hidden rounded-md border-l-4 border-primary bg-primary px-3 py-1.5 text-left text-xs text-primary-foreground shadow-sm"
+                          onClick={() => canEdit && setEditing(block)}
+                          className={`absolute top-2 flex flex-col justify-center overflow-hidden rounded-md border-l-4 border-primary bg-primary px-3 py-1.5 text-left text-xs text-primary-foreground shadow-sm ${canEdit ? "cursor-grab" : "cursor-default"}`}
                           style={{ left, width, height: ROW_HEIGHT - 16 }}
                         >
                           <p className="truncate font-medium">{block.title}</p>
                           <p className="truncate opacity-80">{formatTime(block.startMinute)}–{formatTime(block.endMinute)} · {blockHours(block).toFixed(1)}h</p>
-                          <span
-                            aria-label="Resize block"
-                            className="absolute right-0 top-0 h-full w-2 cursor-ew-resize"
-                            onPointerDown={(event) => resize(block.id, event)}
-                          />
+                          {canEdit ? (
+                            <span
+                              aria-label="Resize block"
+                              className="absolute right-0 top-0 h-full w-2 cursor-ew-resize"
+                              onPointerDown={(event) => resize(block.id, event)}
+                            />
+                          ) : null}
                         </div>
                       );
                     })}

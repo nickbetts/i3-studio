@@ -27,9 +27,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
     { href: "/agency/settings", label: "Settings", icon: "settings" },
   ];
   const visibleItems = allowedTabs ? navItems.filter((item) => allowedTabs.includes(item.icon)) : navItems;
-  if (user.role === "admin") {
-    visibleItems.push({ href: "/agency/calendar", label: "Calendar", icon: "calendar" });
-  }
+  visibleItems.push({ href: "/agency/calendar", label: "Calendar", icon: "calendar" });
 
   return (
     <AppShell

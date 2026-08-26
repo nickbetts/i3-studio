@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { allocations } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth-helpers";
+import { requireAgencyUser } from "@/lib/auth-helpers";
 import { auditLog } from "@/lib/audit";
 
 function timeToMinutes(value: string) {
@@ -23,7 +23,7 @@ const createSchema = z.object({
 });
 
 export async function createAllocation(formData: FormData): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requireAgencyUser();
   const parsed = createSchema.safeParse({
     memberUserId: formData.get("memberUserId"),
     title: formData.get("title"),
@@ -54,7 +54,7 @@ export async function createAllocation(formData: FormData): Promise<void> {
 }
 
 export async function deleteAllocation(allocationId: string): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requireAgencyUser();
   await db.delete(allocations).where(eq(allocations.id, allocationId));
   await auditLog({ actorUserId: actor.id, action: "allocation.deleted", entityType: "allocation", entityId: allocationId });
   revalidatePath("/agency/calendar");
@@ -70,7 +70,7 @@ type AllocationUpdate = {
 };
 
 export async function updateAllocation(allocationId: string, update: AllocationUpdate): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requireAgencyUser();
   if (update.startMinute != null && update.endMinute != null && update.endMinute <= update.startMinute) return;
   await db
     .update(allocations)
