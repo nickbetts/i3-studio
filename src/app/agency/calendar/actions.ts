@@ -8,18 +8,15 @@ import { allocations } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
 import { auditLog } from "@/lib/audit";
 
-function timeToMinutes(value: string) {
-  const [h, m] = value.split(":").map(Number);
-  return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
-}
-
+// Allocations are tracked in whole/half days. startMinute 0 = morning, 720 = afternoon.
+// endMinute 720 = ends midday, 1440 = ends end of day.
 const createSchema = z.object({
   memberUserId: z.string().min(1),
   title: z.string().trim().min(2),
   date: z.string().min(10),
   endDate: z.string().min(10).optional(),
-  startTime: z.string().regex(/^\d{2}:\d{2}$/),
-  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+  startHalf: z.enum(["am", "pm"]),
+  endHalf: z.enum(["midday", "end"]),
 });
 
 export async function createAllocation(formData: FormData): Promise<void> {
@@ -29,21 +26,23 @@ export async function createAllocation(formData: FormData): Promise<void> {
     title: formData.get("title"),
     date: formData.get("date"),
     endDate: formData.get("endDate") || undefined,
-    startTime: formData.get("startTime"),
-    endTime: formData.get("endTime"),
+    startHalf: formData.get("startHalf") || "am",
+    endHalf: formData.get("endHalf") || "end",
   });
   if (!parsed.success) return;
-  const startMinute = timeToMinutes(parsed.data.startTime);
-  const endMinute = timeToMinutes(parsed.data.endTime);
-  if (endMinute <= startMinute) return;
+  const startMinute = parsed.data.startHalf === "pm" ? 720 : 0;
+  const endMinute = parsed.data.endHalf === "midday" ? 720 : 1440;
+  const start = parsed.data.date;
+  const end = parsed.data.endDate || parsed.data.date;
+  if (end === start && endMinute - startMinute < 720) return;
 
   const [allocation] = await db
     .insert(allocations)
     .values({
       memberUserId: parsed.data.memberUserId,
       title: parsed.data.title,
-      date: new Date(`${parsed.data.date}T12:00:00`),
-      endDate: new Date(`${parsed.data.endDate || parsed.data.date}T12:00:00`),
+      date: new Date(`${start}T12:00:00`),
+      endDate: new Date(`${end}T12:00:00`),
       startMinute,
       endMinute,
       createdByUserId: actor.id,
@@ -71,7 +70,7 @@ type AllocationUpdate = {
 
 export async function updateAllocation(allocationId: string, update: AllocationUpdate): Promise<void> {
   const actor = await requireAgencyUser();
-  if (update.startMinute != null && update.endMinute != null && update.endMinute <= update.startMinute) return;
+  if (update.date && update.endDate && update.date === update.endDate && update.startMinute != null && update.endMinute != null && update.endMinute <= update.startMinute) return;
   await db
     .update(allocations)
     .set({

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { addDays, differenceInCalendarDays, format, startOfMonth, startOfWeek } from "date-fns";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,25 +14,56 @@ type Block = { id: string; memberUserId: string; title: string; date: Date; endD
 type Member = { id: string; name: string };
 
 const DAY_WIDTH = 160;
+const HALF = DAY_WIDTH / 2;
 const ROW_HEIGHT = 68;
+const NAME_WIDTH = 200;
 
-function minutesToTime(minutes: number) {
-  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+// Allocations are measured in whole/half days.
+// startMinute: 0 = morning, 720 = afternoon.  endMinute: 720 = midday, 1440 = end of day.
+function startsPM(block: Block) {
+  return block.startMinute >= 720;
 }
-function timeToMinutes(value: string) {
-  const [h, m] = value.split(":").map(Number);
-  return (h || 0) * 60 + (m || 0);
+function endsMidday(block: Block) {
+  return block.endMinute <= 720;
 }
-function formatTime(minutes: number) {
-  const hour = Math.floor(minutes / 60);
-  const minute = String(minutes % 60).padStart(2, "0");
-  return `${hour % 12 || 12}:${minute}${hour >= 12 ? "pm" : "am"}`;
+
+// Convert a block to a half-day span (in half-day units) relative to the week start.
+function toHalfSpan(block: Block, weekStart: Date) {
+  const startDay = differenceInCalendarDays(new Date(block.date), weekStart);
+  const endDay = differenceInCalendarDays(new Date(block.endDate || block.date), weekStart);
+  const startHalf = startDay * 2 + (startsPM(block) ? 1 : 0);
+  const endHalf = endDay * 2 + (endsMidday(block) ? 1 : 2);
+  return { startHalf, endHalf: Math.max(startHalf + 1, endHalf) };
 }
-function durationDays(block: Block) {
-  return Math.max(0, differenceInCalendarDays(block.endDate || block.date, block.date));
+
+// Convert a half-day span back into persistable date/half fields.
+function fromHalfSpan(startHalf: number, endHalf: number, weekStart: Date) {
+  const safeEnd = Math.max(startHalf + 1, endHalf);
+  const startDay = Math.floor(startHalf / 2);
+  const startPM = startHalf - startDay * 2 === 1;
+  const lastHalf = safeEnd - 1;
+  const endDay = Math.floor(lastHalf / 2);
+  const endPM = lastHalf - endDay * 2 === 1;
+  return {
+    date: addDays(weekStart, startDay),
+    endDate: addDays(weekStart, endDay),
+    startMinute: startPM ? 720 : 0,
+    endMinute: endPM ? 1440 : 720,
+  };
 }
-function blockHours(block: Block) {
-  return (durationDays(block) * 1440 + block.endMinute - block.startMinute) / 60;
+
+function blockDays(block: Block) {
+  const startOffset = startsPM(block) ? 1 : 0;
+  const endHalves = differenceInCalendarDays(new Date(block.endDate || block.date), new Date(block.date)) * 2 + (endsMidday(block) ? 1 : 2);
+  return (endHalves - startOffset) / 2;
+}
+function daysLabel(days: number) {
+  return `${days} day${days === 1 ? "" : "s"}`;
+}
+function rangeLabel(block: Block) {
+  const start = new Date(block.date);
+  const end = new Date(block.endDate || block.date);
+  return differenceInCalendarDays(end, start) === 0 ? format(start, "d MMM") : `${format(start, "d MMM")} – ${format(end, "d MMM")}`;
 }
 
 export function CalendarGrid({ members, blocks, canEdit }: { members: Member[]; blocks: Block[]; canEdit: boolean }) {
@@ -41,7 +72,6 @@ export function CalendarGrid({ members, blocks, canEdit }: { members: Member[]; 
   const [localBlocks, setLocalBlocks] = useState(blocks);
   const [editing, setEditing] = useState<Block | null>(null);
   const [pending, startTransition] = useTransition();
-  const resizingRef = useRef(false);
 
   // Re-sync with server data whenever an allocation is added, edited or removed.
   const signature = blocks.map((b) => `${b.id}:${new Date(b.date).getTime()}:${b.endDate ? new Date(b.endDate).getTime() : 0}:${b.startMinute}:${b.endMinute}:${b.memberUserId}:${b.title}`).join("|");
@@ -61,47 +91,65 @@ export function CalendarGrid({ members, blocks, canEdit }: { members: Member[]; 
     setDate((current) => (view === "week" ? addDays(current, amount * 7) : addDays(current, amount * 30)));
   }
 
-  function drop(memberId: string, event: React.DragEvent<HTMLDivElement>) {
+  // Fluid pointer drag: moves a block across days (half-day snap) and between people.
+  function beginDrag(block: Block, event: React.PointerEvent<HTMLDivElement>) {
     if (!canEdit) return;
-    const id = event.dataTransfer.getData("block-id");
-    const block = localBlocks.find((item) => item.id === id);
-    if (!block) return;
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const dropDay = Math.max(0, Math.min(6, Math.floor((event.clientX - bounds.left) / DAY_WIDTH)));
-    const newDate = addDays(weekStart, dropDay);
-    const newEndDate = addDays(newDate, durationDays(block));
-    const next = { ...block, memberUserId: memberId, date: newDate, endDate: newEndDate };
-    setLocalBlocks((items) => items.map((item) => (item.id === id ? next : item)));
-    startTransition(async () => {
-      await updateAllocation(id, { memberUserId: memberId, date: format(newDate, "yyyy-MM-dd"), endDate: format(newEndDate, "yyyy-MM-dd") });
-      toast.success("Block moved");
-    });
-  }
-
-  function resize(id: string, event: React.PointerEvent<HTMLSpanElement>) {
-    event.stopPropagation();
     event.preventDefault();
-    resizingRef.current = true;
-    const block = localBlocks.find((item) => item.id === id);
-    if (!block) return;
-    const startX = event.clientX;
-    const initial = durationDays(block);
+    const { startHalf, endHalf } = toHalfSpan(block, weekStart);
+    const duration = endHalf - startHalf;
+    const originMember = Math.max(0, members.findIndex((member) => member.id === block.memberUserId));
+    let moved = false;
+    let curStartHalf = startHalf;
+    let curMember = originMember;
     const onMove = (moveEvent: PointerEvent) => {
-      const delta = Math.round((moveEvent.clientX - startX) / DAY_WIDTH);
-      const nextDuration = Math.max(0, initial + delta);
-      const endDate = addDays(block.date, nextDuration);
-      setLocalBlocks((items) => items.map((item) => (item.id === id ? { ...item, endDate } : item)));
+      if (Math.abs(moveEvent.clientX - event.clientX) > 4 || Math.abs(moveEvent.clientY - event.clientY) > 4) moved = true;
+      const dx = Math.round((moveEvent.clientX - event.clientX) / HALF);
+      const dy = Math.round((moveEvent.clientY - event.clientY) / ROW_HEIGHT);
+      curStartHalf = startHalf + dx;
+      curMember = Math.max(0, Math.min(members.length - 1, originMember + dy));
+      const span = fromHalfSpan(curStartHalf, curStartHalf + duration, weekStart);
+      const memberUserId = members[curMember].id;
+      setLocalBlocks((items) => items.map((item) => (item.id === block.id ? { ...item, ...span, memberUserId } : item)));
     };
     const onUp = () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
-      const changed = localBlocks.find((item) => item.id === id);
-      const endDate = changed?.endDate ?? block.date;
+      if (!moved) {
+        setEditing(block);
+        return;
+      }
+      const span = fromHalfSpan(curStartHalf, curStartHalf + duration, weekStart);
+      const memberUserId = members[curMember].id;
       startTransition(async () => {
-        await updateAllocation(id, { endDate: format(endDate, "yyyy-MM-dd") });
+        await updateAllocation(block.id, { memberUserId, date: format(span.date, "yyyy-MM-dd"), endDate: format(span.endDate, "yyyy-MM-dd"), startMinute: span.startMinute, endMinute: span.endMinute });
+        toast.success("Block moved");
+      });
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  // Right-edge resize in half-day steps.
+  function resize(block: Block, event: React.PointerEvent<HTMLSpanElement>) {
+    if (!canEdit) return;
+    event.stopPropagation();
+    event.preventDefault();
+    const { startHalf, endHalf } = toHalfSpan(block, weekStart);
+    let curEndHalf = endHalf;
+    const onMove = (moveEvent: PointerEvent) => {
+      const dx = Math.round((moveEvent.clientX - event.clientX) / HALF);
+      curEndHalf = Math.max(startHalf + 1, endHalf + dx);
+      const span = fromHalfSpan(startHalf, curEndHalf, weekStart);
+      setLocalBlocks((items) => items.map((item) => (item.id === block.id ? { ...item, ...span } : item)));
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      const span = fromHalfSpan(startHalf, curEndHalf, weekStart);
+      startTransition(async () => {
+        await updateAllocation(block.id, { date: format(span.date, "yyyy-MM-dd"), endDate: format(span.endDate, "yyyy-MM-dd"), startMinute: span.startMinute, endMinute: span.endMinute });
         toast.success("Block resized");
       });
-      setTimeout(() => (resizingRef.current = false), 0);
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
@@ -109,6 +157,10 @@ export function CalendarGrid({ members, blocks, canEdit }: { members: Member[]; 
 
   function saveEdit() {
     if (!editing || !editing.title.trim()) return;
+    if (blockDays(editing) <= 0) {
+      toast.error("The block needs to end after it starts");
+      return;
+    }
     const next = { ...editing, title: editing.title.trim() };
     setLocalBlocks((items) => items.map((item) => (item.id === next.id ? next : item)));
     startTransition(async () => {
@@ -134,10 +186,10 @@ export function CalendarGrid({ members, blocks, canEdit }: { members: Member[]; 
     });
   }
 
-  const hoursFor = (memberId: string) =>
+  const daysFor = (memberId: string) =>
     localBlocks
-      .filter((block) => block.memberUserId === memberId && differenceInCalendarDays(block.endDate || block.date, weekStart) >= 0 && differenceInCalendarDays(block.date, weekStart) <= 6)
-      .reduce((total, block) => total + blockHours(block), 0);
+      .filter((block) => block.memberUserId === memberId && differenceInCalendarDays(new Date(block.endDate || block.date), weekStart) >= 0 && differenceInCalendarDays(new Date(block.date), weekStart) <= 6)
+      .reduce((total, block) => total + blockDays(block), 0);
 
   return (
     <div className="space-y-4">
@@ -177,73 +229,66 @@ export function CalendarGrid({ members, blocks, canEdit }: { members: Member[]; 
         </div>
       ) : (
         <div className="overflow-x-auto rounded-md border">
-          <div style={{ minWidth: 240 + 7 * DAY_WIDTH }}>
-            <div className="grid border-b bg-muted/40 text-xs font-medium" style={{ gridTemplateColumns: `240px repeat(7, ${DAY_WIDTH}px)` }}>
-              <div className="p-3">Team member</div>
-              {days.map((day) => (
-                <div key={day.toISOString()} className="border-l p-3">
-                  <p>{format(day, "EEE")}</p>
-                  <p className="text-muted-foreground">{format(day, "d MMM")}</p>
-                </div>
-              ))}
-            </div>
-            {members.map((member) => (
-              <div key={member.id} className="grid" style={{ gridTemplateColumns: `240px repeat(7, ${DAY_WIDTH}px)` }}>
-                <div className="border-b p-3">
-                  <p className="text-sm font-medium">{member.name}</p>
-                  <p className="text-xs text-muted-foreground">{hoursFor(member.id).toFixed(1)}h this week</p>
-                </div>
-                <div
-                  className="relative col-span-7 border-b"
-                  style={{ height: ROW_HEIGHT }}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={(event) => drop(member.id, event)}
-                >
-                  <div className="absolute inset-0 grid grid-cols-7">
-                    {days.map((day) => (
-                      <div key={day.toISOString()} className="border-l" />
-                    ))}
+          <div style={{ minWidth: NAME_WIDTH + 7 * DAY_WIDTH }}>
+            <div className="flex border-b bg-muted/40 text-xs font-medium">
+              <div className="p-3" style={{ width: NAME_WIDTH }}>Team member</div>
+              <div className="flex">
+                {days.map((day) => (
+                  <div key={day.toISOString()} className="border-l p-3" style={{ width: DAY_WIDTH }}>
+                    <p>{format(day, "EEE")}</p>
+                    <p className="text-muted-foreground">{format(day, "d MMM")}</p>
                   </div>
-                  {localBlocks
-                    .filter((block) => block.memberUserId === member.id)
-                    .map((block) => {
-                      const startDay = differenceInCalendarDays(new Date(block.date), weekStart);
-                      const finishDay = differenceInCalendarDays(new Date(block.endDate || block.date), weekStart);
-                      if (finishDay < 0 || startDay > 6) return null;
-                      const clampedStart = Math.max(0, startDay);
-                      const clampedFinish = Math.min(6, finishDay);
-                      const left = clampedStart * DAY_WIDTH + 4;
-                      const width = (clampedFinish - clampedStart + 1) * DAY_WIDTH - 8;
-                      return (
-                        <div
-                          key={block.id}
-                          draggable={canEdit}
-                          onDragStart={(event) => {
-                            if (!canEdit || resizingRef.current) {
-                              event.preventDefault();
-                              return;
-                            }
-                            event.dataTransfer.setData("block-id", block.id);
-                          }}
-                          onClick={() => canEdit && setEditing(block)}
-                          className={`absolute top-2 flex flex-col justify-center overflow-hidden rounded-md border-l-4 border-primary bg-primary px-3 py-1.5 text-left text-xs text-primary-foreground shadow-sm ${canEdit ? "cursor-grab" : "cursor-default"}`}
-                          style={{ left, width, height: ROW_HEIGHT - 16 }}
-                        >
-                          <p className="truncate font-medium">{block.title}</p>
-                          <p className="truncate opacity-80">{formatTime(block.startMinute)}–{formatTime(block.endMinute)} · {blockHours(block).toFixed(1)}h</p>
-                          {canEdit ? (
-                            <span
-                              aria-label="Resize block"
-                              className="absolute right-0 top-0 h-full w-2 cursor-ew-resize"
-                              onPointerDown={(event) => resize(block.id, event)}
-                            />
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                </div>
+                ))}
               </div>
-            ))}
+            </div>
+            <div className="flex">
+              <div style={{ width: NAME_WIDTH }}>
+                {members.map((member) => (
+                  <div key={member.id} className="flex flex-col justify-center border-b px-3" style={{ height: ROW_HEIGHT }}>
+                    <p className="truncate text-sm font-medium">{member.name}</p>
+                    <p className="text-xs text-muted-foreground">{daysLabel(daysFor(member.id))} this week</p>
+                  </div>
+                ))}
+              </div>
+              <div className="relative" style={{ width: 7 * DAY_WIDTH, height: members.length * ROW_HEIGHT }}>
+                {members.map((member, index) => (
+                  <div key={member.id} className="absolute inset-x-0 border-b" style={{ top: index * ROW_HEIGHT, height: ROW_HEIGHT }} />
+                ))}
+                {days.map((day, index) => (
+                  <div key={day.toISOString()} className="absolute top-0 border-l" style={{ left: index * DAY_WIDTH, width: DAY_WIDTH, height: members.length * ROW_HEIGHT }}>
+                    <div className="absolute bottom-0 top-0 border-l border-dashed border-border/60" style={{ left: HALF }} />
+                  </div>
+                ))}
+                {localBlocks.map((block) => {
+                  const memberIndex = members.findIndex((member) => member.id === block.memberUserId);
+                  if (memberIndex < 0) return null;
+                  const { startHalf, endHalf } = toHalfSpan(block, weekStart);
+                  if (endHalf <= 0 || startHalf >= 14) return null;
+                  const clampedStart = Math.max(0, startHalf);
+                  const clampedEnd = Math.min(14, endHalf);
+                  const left = clampedStart * HALF + 3;
+                  const width = (clampedEnd - clampedStart) * HALF - 6;
+                  return (
+                    <div
+                      key={block.id}
+                      onPointerDown={(event) => beginDrag(block, event)}
+                      className={`absolute flex flex-col justify-center overflow-hidden rounded-md border-l-4 border-primary bg-primary px-3 py-1 text-left text-xs text-primary-foreground shadow-sm ${canEdit ? "cursor-grab touch-none select-none active:cursor-grabbing" : "cursor-default"}`}
+                      style={{ top: memberIndex * ROW_HEIGHT + 6, left, width, height: ROW_HEIGHT - 12 }}
+                    >
+                      <p className="truncate font-medium">{block.title}</p>
+                      <p className="truncate text-[11px] opacity-80">{rangeLabel(block)} · {daysLabel(blockDays(block))}</p>
+                      {canEdit ? (
+                        <span
+                          aria-label="Resize block"
+                          className="absolute right-0 top-0 h-full w-2.5 touch-none cursor-ew-resize"
+                          onPointerDown={(event) => resize(block, event)}
+                        />
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -276,12 +321,18 @@ export function CalendarGrid({ members, blocks, canEdit }: { members: Member[]; 
                   <Input id="edit-end-date" type="date" value={format(editing.endDate || editing.date, "yyyy-MM-dd")} onChange={(event) => setEditing({ ...editing, endDate: new Date(`${event.target.value}T12:00:00`) })} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-start">Start time</Label>
-                  <Input id="edit-start" type="time" step={900} value={minutesToTime(editing.startMinute)} onChange={(event) => setEditing({ ...editing, startMinute: timeToMinutes(event.target.value) })} />
+                  <Label htmlFor="edit-start-half">Starts</Label>
+                  <Select value={editing.startMinute >= 720 ? "pm" : "am"} onValueChange={(value) => setEditing({ ...editing, startMinute: value === "pm" ? 720 : 0 })}>
+                    <SelectTrigger id="edit-start-half"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="am">Morning</SelectItem><SelectItem value="pm">Afternoon</SelectItem></SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-end">End time</Label>
-                  <Input id="edit-end" type="time" step={900} value={minutesToTime(editing.endMinute)} onChange={(event) => setEditing({ ...editing, endMinute: timeToMinutes(event.target.value) })} />
+                  <Label htmlFor="edit-end-half">Ends</Label>
+                  <Select value={editing.endMinute <= 720 ? "midday" : "end"} onValueChange={(value) => setEditing({ ...editing, endMinute: value === "midday" ? 720 : 1440 })}>
+                    <SelectTrigger id="edit-end-half"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="midday">Midday</SelectItem><SelectItem value="end">End of day</SelectItem></SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="flex justify-between">
