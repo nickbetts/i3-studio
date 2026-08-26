@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
-import { accountManagerAssignments, clientAccounts, tasks, users } from "@/db/schema";
+import { accountManagerAssignments, clientAccounts, onboardingSubmissions, tasks, users } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
 import { auditLog } from "@/lib/audit";
 
@@ -102,4 +102,17 @@ export async function updateTaskStatus(taskId: string, status: "open" | "in_prog
   await auditLog({ actorUserId: actor.id, action: "task.status_updated", entityType: "task", entityId: taskId, clientAccountId: task.clientAccountId, metadata: { status } });
   revalidatePath("/agency/clients");
   revalidatePath("/portal");
+}
+
+export async function resetClientOnboarding(formData: FormData): Promise<void> {
+  const actor = await requireAgencyUser();
+  const clientAccountId = String(formData.get("clientAccountId") || "");
+  if (!clientAccountId) return;
+  await db.delete(onboardingSubmissions).where(eq(onboardingSubmissions.clientAccountId, clientAccountId));
+  await db.update(clientAccounts).set({ status: "onboarding", onboardingCompletedAt: null }).where(eq(clientAccounts.id, clientAccountId));
+  await auditLog({ actorUserId: actor.id, action: "client.onboarding_reset", entityType: "client_account", entityId: clientAccountId, clientAccountId });
+  revalidatePath("/agency/clients");
+  revalidatePath(`/agency/clients/${clientAccountId}`);
+  revalidatePath("/portal");
+  revalidatePath("/portal/onboarding");
 }

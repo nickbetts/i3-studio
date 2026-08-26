@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import Link from "next/link";
 import { db } from "@/db";
 import { clientAccounts, tasks } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
@@ -39,7 +40,7 @@ export default async function AgencyClientsPage() {
         <Card>
           <CardHeader><CardTitle className="text-base">Client accounts</CardTitle><CardDescription>{clients.length} account{clients.length === 1 ? "" : "s"} in this workspace.</CardDescription></CardHeader>
           <CardContent className="space-y-3">
-            {clients.length === 0 ? <p className="text-sm text-muted-foreground">No clients yet.</p> : clients.map((client) => <div key={client.id} className="flex items-center justify-between rounded-md border p-3"><div><p className="font-medium">{client.name}</p><p className="text-xs text-muted-foreground">{client.slug}</p></div><Badge variant="outline" className="capitalize">{client.status}</Badge></div>)}
+            {clients.length === 0 ? <p className="text-sm text-muted-foreground">No clients yet.</p> : clients.map((client) => <div key={client.id} className="flex items-center justify-between rounded-md border p-3"><div><Link href={`/agency/clients/${client.id}`} className="font-medium underline-offset-4 hover:underline">{client.name}</Link><p className="text-xs text-muted-foreground">{client.slug}</p></div><Badge variant="outline" className="capitalize">{client.status}</Badge></div>)}
           </CardContent>
         </Card>
       </div>
