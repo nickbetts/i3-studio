@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import { FileCheck2, FolderKanban, LayoutDashboard, LifeBuoy, PenTool } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import type { NavItem } from "@/components/sidebar-nav";
 import { db } from "@/db";
@@ -19,11 +18,11 @@ export default async function PortalAppLayout({ children }: { children: ReactNod
   if (!account?.onboardingCompletedAt) redirect("/portal/onboarding");
 
   const navItems: NavItem[] = [
-    { href: "/portal", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/portal/projects", label: "Projects", icon: FolderKanban },
-    { href: "/portal/approvals", label: "Approvals", icon: FileCheck2 },
-    { href: "/portal/designs", label: "Designs", icon: PenTool },
-    { href: "/portal/support", label: "Support", icon: LifeBuoy },
+    { href: "/portal", label: "Dashboard", icon: "dashboard" },
+    { href: "/portal/projects", label: "Projects", icon: "projects" },
+    { href: "/portal/approvals", label: "Approvals", icon: "files" },
+    { href: "/portal/designs", label: "Designs", icon: "designs" },
+    { href: "/portal/support", label: "Support", icon: "support" },
   ];
 
   return (

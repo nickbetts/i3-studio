@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { LucideIcon } from "lucide-react";
+import { CalendarClock, FileCheck2, FolderKanban, Image, LayoutDashboard, LifeBuoy, LineChart, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type NavItem = {
   href: string;
   label: string;
-  icon: LucideIcon;
+  icon: "calendar" | "files" | "projects" | "designs" | "dashboard" | "support" | "reports" | "clients";
 };
+
+const icons = { calendar: CalendarClock, files: FileCheck2, projects: FolderKanban, designs: Image, dashboard: LayoutDashboard, support: LifeBuoy, reports: LineChart, clients: Users };
 
 export function SidebarNav({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
@@ -18,7 +20,7 @@ export function SidebarNav({ items }: { items: NavItem[] }) {
     <nav className="flex flex-col gap-1">
       {items.map((item) => {
         const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-        const Icon = item.icon;
+        const Icon = icons[item.icon];
         return (
           <Link
             key={item.href}
