@@ -1,6 +1,10 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { auth } from "@/auth";
 import type { AppRole } from "@/types/next-auth";
+import { db } from "@/db";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export async function getSession() {
   return auth();
@@ -8,7 +12,17 @@ export async function getSession() {
 
 export async function getCurrentUser() {
   const session = await auth();
-  return session?.user ?? null;
+  if (!session?.user) return null;
+  const previewId = (await cookies()).get("i3_preview_user")?.value;
+  if (previewId && isAgencyRole(session.user.role)) {
+    const previewUser = await db.query.users.findFirst({ where: eq(users.id, previewId) });
+    if (previewUser && previewUser.status === "active") return { ...session.user, ...previewUser, clientAccountId: previewUser.clientAccountId };
+  }
+  return session.user;
+}
+
+export async function isPreviewing() {
+  return Boolean((await cookies()).get("i3_preview_user")?.value);
 }
 
 export function isAgencyRole(role: AppRole | undefined | null) {

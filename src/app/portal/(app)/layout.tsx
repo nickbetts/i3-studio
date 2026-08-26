@@ -6,9 +6,11 @@ import type { NavItem } from "@/components/sidebar-nav";
 import { db } from "@/db";
 import { clientAccounts } from "@/db/schema";
 import { requireClientUser } from "@/lib/auth-helpers";
+import { isPreviewing } from "@/lib/auth-helpers";
 
 export default async function PortalAppLayout({ children }: { children: ReactNode }) {
   const user = await requireClientUser();
+  const previewing = await isPreviewing();
 
   const account = await db.query.clientAccounts.findFirst({
     where: eq(clientAccounts.id, user.clientAccountId),
@@ -33,6 +35,7 @@ export default async function PortalAppLayout({ children }: { children: ReactNod
       roleLabel="Client"
       navItems={visibleItems}
       user={{ name: user.name, email: user.email }}
+      previewing={previewing}
     >
       {children}
     </AppShell>

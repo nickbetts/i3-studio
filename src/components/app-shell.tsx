@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SidebarNav, type NavItem } from "@/components/sidebar-nav";
 import { SignOutButton } from "@/components/sign-out-button";
-import { PreviewMenu } from "@/components/preview-menu";
+import { PreviewMenu, PreviewReturn, type PreviewTarget } from "@/components/preview-menu";
 
 type AppShellProps = {
   brand: string;
@@ -11,6 +11,8 @@ type AppShellProps = {
   roleLabel: string;
   children: ReactNode;
   preview?: boolean;
+  previewTargets?: PreviewTarget[];
+  previewing?: boolean;
 };
 
 function initials(nameOrEmail: string) {
@@ -21,7 +23,7 @@ function initials(nameOrEmail: string) {
   return base.slice(0, 2).toUpperCase();
 }
 
-export function AppShell({ brand, navItems, user, roleLabel, children, preview = false }: AppShellProps) {
+export function AppShell({ brand, navItems, user, roleLabel, children, preview = false, previewTargets = [], previewing = false }: AppShellProps) {
   const display = user.name || user.email || "User";
 
   return (
@@ -42,13 +44,14 @@ export function AppShell({ brand, navItems, user, roleLabel, children, preview =
               <div className="truncate text-xs text-muted-foreground">{user.email}</div>
             </div>
           </div>
-          {preview ? <PreviewMenu /> : null}
+          {preview ? <PreviewMenu targets={previewTargets} /> : null}
           <SignOutButton />
         </div>
       </aside>
       <main className="flex-1 overflow-y-auto bg-muted/20">
         <div className="mx-auto w-full max-w-6xl p-6">{children}</div>
       </main>
+      {previewing ? <PreviewReturn /> : null}
     </div>
   );
 }

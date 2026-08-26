@@ -26,9 +26,9 @@ export const authConfig = {
       }
       return session;
     },
-    authorized({ auth, request: { nextUrl } }) {
+    authorized({ auth, request }) {
       const isLoggedIn = !!auth?.user;
-      const { pathname } = nextUrl;
+      const { pathname } = request.nextUrl;
 
       const isPublic =
         pathname === "/" ||
@@ -41,17 +41,18 @@ export const authConfig = {
 
       const role = auth!.user.role;
       const isAgency = role === "admin" || role === "account_manager";
+      const isPreviewing = Boolean(request.cookies.get("i3_preview_user")?.value);
 
       // Area isolation: clients cannot see the agency app and vice versa.
-      if (pathname.startsWith("/agency") && !isAgency) {
-        return Response.redirect(new URL("/portal", nextUrl));
+      if (pathname.startsWith("/agency") && !isAgency && !isPreviewing) {
+        return Response.redirect(new URL("/portal", request.nextUrl));
       }
-      if (pathname.startsWith("/portal") && isAgency) {
-        return Response.redirect(new URL("/agency", nextUrl));
+      if (pathname.startsWith("/portal") && isAgency && !isPreviewing) {
+        return Response.redirect(new URL("/agency", request.nextUrl));
       }
       // Admin-only sections.
       if (pathname.startsWith("/agency/calendar") && role !== "admin") {
-        return Response.redirect(new URL("/agency", nextUrl));
+        return Response.redirect(new URL("/agency", request.nextUrl));
       }
       return true;
     },
