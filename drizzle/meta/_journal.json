@@ -22,6 +22,13 @@
       "when": 1787751086850,
       "tag": "0002_loose_sally_floyd",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787751355842,
+      "tag": "0003_known_warbound",
+      "breakpoints": true
     }
   ]
 }

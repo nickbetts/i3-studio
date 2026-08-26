@@ -47,6 +47,7 @@ export const users = pgTable("user", {
   clientAccountId: text("client_account_id"),
   phone: text("phone"),
   title: text("title"),
+  clientRole: text("client_role"),
   permissions: jsonb("permissions").notNull().default({}),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });

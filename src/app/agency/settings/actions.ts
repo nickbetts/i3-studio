@@ -44,3 +44,47 @@ export async function updateClientTabs(formData: FormData): Promise<void> {
   await auditLog({ actorUserId: actor.id, action: "client.portal_tabs_updated", entityType: "client_account", entityId: clientAccountId, clientAccountId, metadata: { visibleTabs } });
   revalidatePath("/agency/settings");
 }
+
+export async function createClientUser(formData: FormData): Promise<void> {
+  const actor = await requireAdmin();
+  const clientAccountId = String(formData.get("clientAccountId") || "");
+  const parsed = z.object({ name: z.string().trim().min(2), email: z.string().trim().email(), password: z.string().min(8), clientRole: z.string().trim().min(2) }).safeParse({ name: formData.get("name"), email: formData.get("email"), password: formData.get("password"), clientRole: formData.get("clientRole") });
+  if (!clientAccountId || !parsed.success) return;
+  const existing = await db.query.users.findFirst({ where: eq(users.email, parsed.data.email.toLowerCase()) });
+  if (existing) return;
+  await db.insert(users).values({ name: parsed.data.name, email: parsed.data.email.toLowerCase(), passwordHash: await bcrypt.hash(parsed.data.password, 10), role: "client", status: "active", clientAccountId, clientRole: parsed.data.clientRole });
+  await auditLog({ actorUserId: actor.id, action: "client_user.created", entityType: "user", clientAccountId, metadata: { email: parsed.data.email.toLowerCase(), clientRole: parsed.data.clientRole } });
+  revalidatePath("/agency/settings");
+}
+
+export async function updateClientUser(formData: FormData): Promise<void> {
+  const actor = await requireAdmin();
+  const userId = String(formData.get("userId") || "");
+  const clientAccountId = String(formData.get("clientAccountId") || "");
+  const clientRole = String(formData.get("clientRole") || "").trim();
+  const status = String(formData.get("status") || "active");
+  if (!userId || !clientAccountId || !clientRole || !["active", "disabled"].includes(status)) return;
+  await db.update(users).set({ clientRole, status: status as "active" | "disabled" }).where(eq(users.id, userId));
+  await auditLog({ actorUserId: actor.id, action: "client_user.updated", entityType: "user", entityId: userId, clientAccountId, metadata: { clientRole, status } });
+  revalidatePath("/agency/settings");
+}
+
+export async function removeClientUser(formData: FormData): Promise<void> {
+  const actor = await requireAdmin();
+  const userId = String(formData.get("userId") || "");
+  const clientAccountId = String(formData.get("clientAccountId") || "");
+  if (!userId || !clientAccountId) return;
+  await db.delete(users).where(eq(users.id, userId));
+  await auditLog({ actorUserId: actor.id, action: "client_user.removed", entityType: "user", entityId: userId, clientAccountId });
+  revalidatePath("/agency/settings");
+}
+
+export async function removeClientAccount(formData: FormData): Promise<void> {
+  const actor = await requireAdmin();
+  const clientAccountId = String(formData.get("clientAccountId") || "");
+  if (!clientAccountId) return;
+  await db.delete(clientAccounts).where(eq(clientAccounts.id, clientAccountId));
+  await auditLog({ actorUserId: actor.id, action: "client_account.removed", entityType: "client_account", entityId: clientAccountId, clientAccountId });
+  revalidatePath("/agency/settings");
+  revalidatePath("/agency/clients");
+}
