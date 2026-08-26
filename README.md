@@ -72,9 +72,9 @@ tasks, file approvals, a Float-style scheduling calendar and support tickets.
 
 - **P0 Foundation** — scaffold, auth, role guard, base layout ✅
 - **P1 Onboarding + client dashboard** ✅
-- **P2** Agency client management + tasks
-- **P3** File uploads + document approvals (Vercel Blob)
-- **P4** Design pin-and-comment collaboration tool
-- **P5** Support ticketing (in-platform + Mailgun)
-- **P6** Float-style time-blocking calendar
-- **P7** Reporting + audit logs
+- **P2** Agency client management + tasks ✅
+- **P3** File uploads + document approvals (Vercel Blob) ✅
+- **P4** Design pin-and-comment collaboration tool ✅
+- **P5** Support ticketing (in-platform + Mailgun webhook) ✅
+- **P6** Float-style time-blocking calendar ✅
+- **P7** Reporting + audit logs ✅
