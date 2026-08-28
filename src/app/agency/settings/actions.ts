@@ -10,7 +10,7 @@ import { clientAccounts, users } from "@/db/schema";
 import { requireAdmin, requireAgencyUser } from "@/lib/auth-helpers";
 import { auditLog } from "@/lib/audit";
 
-const teammateSchema = z.object({ name: z.string().trim().min(2), email: z.string().trim().email(), password: z.string().min(8), role: z.enum(["admin", "account_manager"]) });
+const teammateSchema = z.object({ name: z.string().trim().min(2), email: z.string().trim().email(), password: z.string().min(8), role: z.enum(["admin", "account_manager", "content_writer"]) });
 const tabs = ["dashboard", "projects", "approvals", "designs", "support"] as const;
 
 export async function createTeammate(formData: FormData): Promise<void> {
@@ -54,8 +54,8 @@ export async function updateUserAccess(formData: FormData): Promise<void> {
   const userId = String(formData.get("userId") || "");
   const role = String(formData.get("role") || "account_manager");
   const allowed = tabs.filter((tab) => formData.get(`tab-${tab}`) === "on");
-  if (!userId || !["admin", "account_manager", "client"].includes(role)) return;
-  await db.update(users).set({ role: role as "admin" | "account_manager" | "client", permissions: { tabs: allowed } }).where(eq(users.id, userId));
+  if (!userId || !["admin", "account_manager", "content_writer", "client"].includes(role)) return;
+  await db.update(users).set({ role: role as "admin" | "account_manager" | "content_writer" | "client", permissions: { tabs: allowed } }).where(eq(users.id, userId));
   await auditLog({ actorUserId: actor.id, action: "user.access_updated", entityType: "user", entityId: userId, metadata: { role, tabs: allowed } });
   revalidatePath("/agency/settings");
 }

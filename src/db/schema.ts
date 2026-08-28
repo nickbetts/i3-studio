@@ -17,7 +17,7 @@ import type { AdapterAccountType } from "next-auth/adapters";
 // ---------------------------------------------------------------------------
 // Enums
 // ---------------------------------------------------------------------------
-export const userRole = pgEnum("user_role", ["admin", "account_manager", "client"]);
+export const userRole = pgEnum("user_role", ["admin", "account_manager", "content_writer", "client"]);
 export const userStatus = pgEnum("user_status", ["invited", "active", "disabled"]);
 export const clientStatus = pgEnum("client_status", ["prospect", "onboarding", "active", "paused"]);
 export const taskStatus = pgEnum("task_status", ["open", "in_progress", "blocked", "done"]);
@@ -28,6 +28,7 @@ export const ticketStatus = pgEnum("ticket_status", ["open", "pending", "resolve
 export const ticketPriority = pgEnum("ticket_priority", ["low", "medium", "high", "urgent"]);
 export const messageChannel = pgEnum("message_channel", ["portal", "email"]);
 export const messageDirection = pgEnum("message_direction", ["inbound", "outbound"]);
+export const contentStatus = pgEnum("content_status", ["draft", "pending_am", "am_changes", "pending_client", "client_changes", "approved", "published"]);
 
 // ---------------------------------------------------------------------------
 // Auth.js core tables (Drizzle adapter) — extended with app fields
@@ -295,6 +296,113 @@ export const referenceFiles = pgTable(
   },
   (t) => [index("reference_file_client_idx").on(t.clientAccountId)],
 );
+
+// ---------------------------------------------------------------------------
+// Content authoring: templates, items, versions, comments, events
+// ---------------------------------------------------------------------------
+export const contentTemplates = pgTable("content_template", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  description: text("description"),
+  contentType: text("content_type").notNull().default("blog"),
+  // Array of { key, label, type, required, help, options }
+  fields: jsonb("fields").notNull().default([]),
+  createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const contentItems = pgTable(
+  "content_item",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    clientAccountId: text("client_account_id").notNull().references(() => clientAccounts.id, { onDelete: "cascade" }),
+    projectId: text("project_id").references(() => projects.id, { onDelete: "set null" }),
+    templateId: text("template_id").references(() => contentTemplates.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    contentType: text("content_type").notNull().default("blog"),
+    status: contentStatus("status").notNull().default("draft"),
+    assignedToUserId: text("assigned_to_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    currentVersion: integer("current_version").notNull().default(0),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("content_item_client_idx").on(t.clientAccountId), index("content_item_status_idx").on(t.status)],
+);
+
+export const contentVersions = pgTable(
+  "content_version",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    contentItemId: text("content_item_id").notNull().references(() => contentItems.id, { onDelete: "cascade" }),
+    version: integer("version").notNull().default(1),
+    // Snapshot of every field value keyed by template field key (richtext stored as HTML).
+    data: jsonb("data").notNull().default({}),
+    authorUserId: text("author_user_id").references(() => users.id, { onDelete: "set null" }),
+    note: text("note"),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("content_version_item_idx").on(t.contentItemId)],
+);
+
+export const contentComments = pgTable(
+  "content_comment",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    contentItemId: text("content_item_id").notNull().references(() => contentItems.id, { onDelete: "cascade" }),
+    versionId: text("version_id").references(() => contentVersions.id, { onDelete: "set null" }),
+    fieldKey: text("field_key"),
+    quote: text("quote"),
+    body: text("body").notNull(),
+    authorUserId: text("author_user_id").references(() => users.id, { onDelete: "set null" }),
+    parentId: text("parent_id"),
+    resolved: boolean("resolved").notNull().default(false),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("content_comment_item_idx").on(t.contentItemId)],
+);
+
+export const contentEvents = pgTable(
+  "content_event",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    contentItemId: text("content_item_id").notNull().references(() => contentItems.id, { onDelete: "cascade" }),
+    actorUserId: text("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorRole: text("actor_role"),
+    type: text("type").notNull(),
+    fromStatus: text("from_status"),
+    toStatus: text("to_status"),
+    note: text("note"),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("content_event_item_idx").on(t.contentItemId)],
+);
+
+export const contentItemsRelations = relations(contentItems, ({ one, many }) => ({
+  template: one(contentTemplates, { fields: [contentItems.templateId], references: [contentTemplates.id] }),
+  client: one(clientAccounts, { fields: [contentItems.clientAccountId], references: [clientAccounts.id] }),
+  assignee: one(users, { fields: [contentItems.assignedToUserId], references: [users.id] }),
+  versions: many(contentVersions),
+  comments: many(contentComments),
+  events: many(contentEvents),
+}));
+
+export const contentVersionsRelations = relations(contentVersions, ({ one }) => ({
+  item: one(contentItems, { fields: [contentVersions.contentItemId], references: [contentItems.id] }),
+  author: one(users, { fields: [contentVersions.authorUserId], references: [users.id] }),
+}));
+
+export const contentCommentsRelations = relations(contentComments, ({ one }) => ({
+  item: one(contentItems, { fields: [contentComments.contentItemId], references: [contentItems.id] }),
+  author: one(users, { fields: [contentComments.authorUserId], references: [users.id] }),
+}));
+
+export const contentEventsRelations = relations(contentEvents, ({ one }) => ({
+  item: one(contentItems, { fields: [contentEvents.contentItemId], references: [contentItems.id] }),
+  actor: one(users, { fields: [contentEvents.actorUserId], references: [users.id] }),
+}));
 
 // ---------------------------------------------------------------------------
 // Design review — pins + comments

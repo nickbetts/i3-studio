@@ -26,7 +26,7 @@ export async function isPreviewing() {
 }
 
 export function isAgencyRole(role: AppRole | undefined | null) {
-  return role === "admin" || role === "account_manager";
+  return role === "admin" || role === "account_manager" || role === "content_writer";
 }
 
 /** Require an authenticated agency user (admin or account manager). */

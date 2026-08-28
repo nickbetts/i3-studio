@@ -13,7 +13,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
   const record = await db.query.users.findFirst({ where: eq(users.id, user.id) });
   const permissions = record?.permissions as { tabs?: unknown } | null;
   const allowedTabs = user.role === "admin" || !Array.isArray(permissions?.tabs) ? null : permissions.tabs;
-  const previewUsers = user.role === "admin" && !previewing ? await db.query.users.findMany({ where: (row, { inArray }) => inArray(row.role, ["admin", "account_manager", "client"]) }) : [];
+  const previewUsers = user.role === "admin" && !previewing ? await db.query.users.findMany({ where: (row, { inArray }) => inArray(row.role, ["admin", "account_manager", "content_writer", "client"]) }) : [];
   const previewTargets = previewUsers.map((target) => ({ id: target.id, label: `${target.name || target.email} (${target.role})`, destination: target.role === "client" ? "/portal" : "/agency" }));
 
   const navItems: NavItem[] = [
@@ -32,7 +32,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
   return (
     <AppShell
       brand="i3 Studio"
-      roleLabel={user.role === "admin" ? "Admin" : "Account Manager"}
+      roleLabel={user.role === "admin" ? "Admin" : user.role === "content_writer" ? "Content Writer" : "Account Manager"}
       navItems={visibleItems}
       preview={user.role === "admin"}
       previewTargets={previewTargets}

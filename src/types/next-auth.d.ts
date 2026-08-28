@@ -1,6 +1,6 @@
 import type { DefaultSession } from "next-auth";
 
-export type AppRole = "admin" | "account_manager" | "client";
+export type AppRole = "admin" | "account_manager" | "content_writer" | "client";
 export type AppUserStatus = "invited" | "active" | "disabled";
 
 declare module "next-auth" {
