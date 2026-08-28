@@ -60,6 +60,17 @@ export async function updateUserAccess(formData: FormData): Promise<void> {
   revalidatePath("/agency/settings");
 }
 
+export async function removeTeammate(formData: FormData): Promise<void> {
+  const actor = await requireAdmin();
+  const userId = String(formData.get("userId") || "");
+  if (!userId || userId === actor.id) return;
+  const target = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  if (!target || target.role === "client") return;
+  await db.delete(users).where(eq(users.id, userId));
+  await auditLog({ actorUserId: actor.id, action: "teammate.removed", entityType: "user", entityId: userId, metadata: { email: target.email, role: target.role } });
+  revalidatePath("/agency/settings");
+}
+
 export async function updateClientTabs(formData: FormData): Promise<void> {
   const actor = await requireAdmin();
   const clientAccountId = String(formData.get("clientAccountId") || "");

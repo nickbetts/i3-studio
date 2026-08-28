@@ -9,6 +9,7 @@ export type NavItem = {
   href: string;
   label: string;
   icon: "calendar" | "files" | "projects" | "designs" | "dashboard" | "support" | "reports" | "clients" | "settings" | "reference" | "content";
+  count?: number;
 };
 
 const icons = { calendar: CalendarClock, files: FileCheck2, projects: FolderKanban, designs: Image, dashboard: LayoutDashboard, support: LifeBuoy, reports: LineChart, clients: Users, settings: Settings, reference: Paperclip, content: FilePenLine };
@@ -39,7 +40,12 @@ export function SidebarNav({ items }: { items: NavItem[] }) {
                 active ? "text-primary" : "text-muted-foreground group-hover:text-foreground",
               )}
             />
-            {item.label}
+            <span className="flex-1">{item.label}</span>
+            {item.count ? (
+              <span className="flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[11px] font-semibold leading-none text-primary-foreground">
+                {item.count > 99 ? "99+" : item.count}
+              </span>
+            ) : null}
           </Link>
         );
       })}
