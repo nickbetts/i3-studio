@@ -84,6 +84,7 @@ export async function saveDraft(itemId: string, data: Record<string, unknown>): 
   const actor = await getCurrentUser();
   if (!actor || !isAgencyRole(actor.role)) return;
   await db.update(contentItems).set({ data, updatedAt: new Date() }).where(eq(contentItems.id, itemId));
+  await auditLog({ actorUserId: actor.id, action: "content.draft_saved", entityType: "content_item", entityId: itemId });
   revalidateItem(itemId);
 }
 
@@ -162,6 +163,22 @@ export async function resolveContentComment(formData: FormData): Promise<void> {
   const item = await db.query.contentItems.findFirst({ where: eq(contentItems.id, comment.contentItemId) });
   if (!item) return;
   if (!isAgencyRole(actor.role) && item.clientAccountId !== actor.clientAccountId) return;
-  await db.update(contentComments).set({ resolved: !comment.resolved }).where(eq(contentComments.id, commentId));
+  const next = !comment.resolved;
+  await db.update(contentComments).set({ resolved: next }).where(eq(contentComments.id, commentId));
+  await auditLog({ actorUserId: actor.id, action: next ? "content.comment_resolved" : "content.comment_reopened", entityType: "content_item", entityId: comment.contentItemId, clientAccountId: item.clientAccountId, metadata: { commentId } });
+  revalidateItem(comment.contentItemId);
+}
+
+// Admins can remove a comment outright — every deletion is still logged.
+export async function deleteContentComment(formData: FormData): Promise<void> {
+  const actor = await getCurrentUser();
+  if (!actor || actor.role !== "admin") return;
+  const commentId = String(formData.get("commentId") ?? "");
+  const comment = await db.query.contentComments.findFirst({ where: eq(contentComments.id, commentId) });
+  if (!comment) return;
+  const item = await db.query.contentItems.findFirst({ where: eq(contentItems.id, comment.contentItemId) });
+  if (!item) return;
+  await db.delete(contentComments).where(eq(contentComments.id, commentId));
+  await auditLog({ actorUserId: actor.id, action: "content.comment_deleted", entityType: "content_item", entityId: comment.contentItemId, clientAccountId: item.clientAccountId, metadata: { deletedBody: comment.body, deletedAuthorId: comment.authorUserId } });
   revalidateItem(comment.contentItemId);
 }

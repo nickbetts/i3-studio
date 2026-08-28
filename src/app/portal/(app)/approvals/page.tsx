@@ -21,7 +21,14 @@ export default async function PortalApprovalsPage() {
 
   const [files, designs, content] = await Promise.all([
     db.query.documents.findMany({ where: eq(documents.clientAccountId, user.clientAccountId), orderBy: desc(documents.createdAt) }),
-    db.query.designAssets.findMany({ where: eq(designAssets.clientAccountId, user.clientAccountId), orderBy: desc(designAssets.createdAt), with: { annotations: { with: { comments: true } } } }),
+    db.query.designAssets.findMany({
+      where: eq(designAssets.clientAccountId, user.clientAccountId),
+      orderBy: desc(designAssets.createdAt),
+      with: {
+        annotations: { with: { comments: { with: { author: true } } } },
+        versions: { orderBy: (version, { desc: descOrder }) => [descOrder(version.version)] },
+      },
+    }),
     db.query.contentItems.findMany({
       where: and(eq(contentItems.clientAccountId, user.clientAccountId), inArray(contentItems.status, ["pending_client", "client_changes", "approved", "published"])),
       orderBy: desc(contentItems.updatedAt),
@@ -85,7 +92,18 @@ export default async function PortalApprovalsPage() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {designs.map((design) => (
-                <DesignCanvasDialog key={design.id} designId={design.id} imageUrl={design.imageUrl} title={design.title} status={design.status} annotations={design.annotations} />
+                <DesignCanvasDialog
+                  key={design.id}
+                  designId={design.id}
+                  imageUrl={design.imageUrl}
+                  title={design.title}
+                  status={design.status}
+                  annotations={design.annotations.map((annotation) => ({
+                    ...annotation,
+                    comments: annotation.comments.map((comment) => ({ ...comment, authorName: comment.author?.name ?? comment.author?.email ?? null, authorRole: comment.author?.role ?? null })),
+                  }))}
+                  versions={design.versions.length ? design.versions : [{ version: 1, imageUrl: design.imageUrl, status: design.status, createdAt: design.createdAt }]}
+                />
               ))}
             </div>
           )}

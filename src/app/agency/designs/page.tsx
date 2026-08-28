@@ -13,11 +13,17 @@ import { requireAgencyUser } from "@/lib/auth-helpers";
 import { uploadDesign } from "./actions";
 
 export default async function AgencyDesignsPage({ searchParams }: { searchParams: Promise<{ client?: string }> }) {
-  await requireAgencyUser();
+  const actor = await requireAgencyUser();
   const { client } = await searchParams;
   const [clients, designs] = await Promise.all([
     db.query.clientAccounts.findMany({ orderBy: desc(clientAccounts.name) }),
-    db.query.designAssets.findMany({ orderBy: desc(designAssets.createdAt), with: { annotations: { with: { comments: true } } } }),
+    db.query.designAssets.findMany({
+      orderBy: desc(designAssets.createdAt),
+      with: {
+        annotations: { with: { comments: { with: { author: true } } } },
+        versions: { orderBy: (version, { desc: descOrder }) => [descOrder(version.version)] },
+      },
+    }),
   ]);
   const clientName = (id: string) => clients.find((item) => item.id === id)?.name ?? "Unknown client";
   const filtered = client ? designs.filter((design) => design.clientAccountId === client) : designs;
@@ -51,7 +57,21 @@ export default async function AgencyDesignsPage({ searchParams }: { searchParams
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {filtered.map((design) => (
-                <DesignCanvasDialog key={design.id} designId={design.id} imageUrl={design.imageUrl} title={design.title} status={design.status} subtitle={clientName(design.clientAccountId)} annotations={design.annotations} />
+                <DesignCanvasDialog
+                  key={design.id}
+                  designId={design.id}
+                  imageUrl={design.imageUrl}
+                  title={design.title}
+                  status={design.status}
+                  subtitle={clientName(design.clientAccountId)}
+                  annotations={design.annotations.map((annotation) => ({
+                    ...annotation,
+                    comments: annotation.comments.map((comment) => ({ ...comment, authorName: comment.author?.name ?? comment.author?.email ?? null, authorRole: comment.author?.role ?? null })),
+                  }))}
+                  versions={design.versions.length ? design.versions : [{ version: 1, imageUrl: design.imageUrl, status: design.status, createdAt: design.createdAt }]}
+                  canUploadVersion
+                  canDelete={actor.role === "admin"}
+                />
               ))}
             </div>
           )}

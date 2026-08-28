@@ -640,6 +640,7 @@ export const accountManagerAssignmentsRelations = relations(accountManagerAssign
 
 export const designAssetsRelations = relations(designAssets, ({ many }) => ({
   annotations: many(annotations),
+  versions: many(designVersions),
 }));
 
 export const annotationsRelations = relations(annotations, ({ one, many }) => ({
@@ -654,6 +655,17 @@ export const annotationCommentsRelations = relations(annotationComments, ({ one 
   annotation: one(annotations, {
     fields: [annotationComments.annotationId],
     references: [annotations.id],
+  }),
+  author: one(users, {
+    fields: [annotationComments.authorUserId],
+    references: [users.id],
+  }),
+}));
+
+export const designVersionsRelations = relations(designVersions, ({ one }) => ({
+  designAsset: one(designAssets, {
+    fields: [designVersions.designAssetId],
+    references: [designAssets.id],
   }),
 }));
 

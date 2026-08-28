@@ -2,15 +2,19 @@
 
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Check, MessageCircle } from "lucide-react";
-import { addAnnotationComment, createAnnotation, resolveAnnotation } from "./actions";
+import { Check, MessageCircle, Trash2 } from "lucide-react";
+import { addAnnotationComment, createAnnotation, deleteAnnotationComment, resolveAnnotation } from "./actions";
 
-export type DesignAnnotation = { id: string; x: number; y: number; resolved: boolean; comments: { id: string; body: string; authorUserId?: string | null }[] };
+const AGENCY_ROLES = ["admin", "account_manager", "content_writer"];
 
-export function DesignReview({ designId, imageUrl, title, annotations }: { designId: string; imageUrl: string; title: string; annotations: DesignAnnotation[] }) {
+export type DesignAnnotationComment = { id: string; body: string; authorUserId?: string | null; authorName?: string | null; authorRole?: string | null; createdAt: string | Date };
+export type DesignAnnotation = { id: string; x: number; y: number; resolved: boolean; comments: DesignAnnotationComment[] };
+
+export function DesignReview({ designId, imageUrl, title, annotations, canDelete = false }: { designId: string; imageUrl: string; title: string; annotations: DesignAnnotation[]; canDelete?: boolean }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -35,6 +39,14 @@ export function DesignReview({ designId, imageUrl, title, annotations }: { desig
       await addAnnotationComment(annotationId, body);
       if (inputRef.current) inputRef.current.value = "";
       toast.success("Reply added");
+    });
+  }
+
+  function removeComment(commentId: string) {
+    if (!window.confirm("Delete this comment? This cannot be undone.")) return;
+    startTransition(async () => {
+      await deleteAnnotationComment(commentId);
+      toast.success("Comment deleted");
     });
   }
 
@@ -89,9 +101,36 @@ export function DesignReview({ designId, imageUrl, title, annotations }: { desig
                   <Badge variant={annotation.resolved ? "secondary" : "outline"}>{annotation.resolved ? "Resolved" : "Open"}</Badge>
                 </div>
                 <div className="space-y-2 text-sm">
-                  {annotation.comments.map((commentItem) => (
-                    <p key={commentItem.id} className="rounded bg-muted p-2">{commentItem.body}</p>
-                  ))}
+                  {annotation.comments.map((commentItem) => {
+                    const isAgency = AGENCY_ROLES.includes(commentItem.authorRole ?? "");
+                    return (
+                      <div
+                        key={commentItem.id}
+                        className={`group/comment relative rounded-md px-2.5 py-2 ring-1 ring-inset ${
+                          isAgency ? "ml-4 bg-primary/15 ring-primary/25" : "mr-4 bg-muted ring-border"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-semibold">{commentItem.authorName || "Unknown"}</span>
+                          <span className="text-[10px] text-muted-foreground">{formatDistanceToNow(new Date(commentItem.createdAt), { addSuffix: true })}</span>
+                        </div>
+                        <p className="mt-0.5">{commentItem.body}</p>
+                        {canDelete ? (
+                          <button
+                            type="button"
+                            aria-label="Delete comment"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              removeComment(commentItem.id);
+                            }}
+                            className="absolute right-1.5 top-1.5 hidden rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-black/10 hover:text-destructive group-hover/comment:opacity-100 sm:block"
+                          >
+                            <Trash2 className="size-3" />
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
                 {selected === annotation.id ? (
                   <div className="mt-3 space-y-2" onClick={(event) => event.stopPropagation()}>
