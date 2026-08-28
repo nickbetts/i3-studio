@@ -2,7 +2,7 @@ import { asc, desc, eq } from "drizzle-orm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
-import { ContentView } from "@/components/content-view";
+import { ArticlePreview } from "@/components/content/article-preview";
 import { ContentTimeline } from "@/components/content/content-timeline";
 import { ContentComments } from "@/components/content/content-comments";
 import { WorkflowActions } from "@/components/content/workflow-actions";
@@ -22,7 +22,7 @@ export default async function AgencyContentItemPage({ params }: { params: Promis
     item.templateId ? db.query.contentTemplates.findFirst({ where: eq(contentTemplates.id, item.templateId) }) : null,
     db.query.clientAccounts.findFirst({ where: eq(clientAccounts.id, item.clientAccountId) }),
     db.select({ id: contentEvents.id, type: contentEvents.type, note: contentEvents.note, createdAt: contentEvents.createdAt, actorName: users.name, actorRole: users.role }).from(contentEvents).leftJoin(users, eq(contentEvents.actorUserId, users.id)).where(eq(contentEvents.contentItemId, id)).orderBy(asc(contentEvents.createdAt)),
-    db.select({ id: contentComments.id, fieldKey: contentComments.fieldKey, body: contentComments.body, resolved: contentComments.resolved, createdAt: contentComments.createdAt, authorName: users.name, authorRole: users.role }).from(contentComments).leftJoin(users, eq(contentComments.authorUserId, users.id)).where(eq(contentComments.contentItemId, id)).orderBy(desc(contentComments.createdAt)),
+    db.select({ id: contentComments.id, fieldKey: contentComments.fieldKey, quote: contentComments.quote, body: contentComments.body, resolved: contentComments.resolved, createdAt: contentComments.createdAt, authorName: users.name, authorRole: users.role }).from(contentComments).leftJoin(users, eq(contentComments.authorUserId, users.id)).where(eq(contentComments.contentItemId, id)).orderBy(desc(contentComments.createdAt)),
   ]);
 
   const fields = (template?.fields as ContentField[]) ?? [];
@@ -48,7 +48,7 @@ export default async function AgencyContentItemPage({ params }: { params: Promis
               {canEdit ? <CardDescription>Save drafts as you go, then submit for account-manager review.</CardDescription> : null}
             </CardHeader>
             <CardContent>
-              {canEdit ? <ContentEditor itemId={item.id} fields={fields} initialData={data} canSubmit /> : <ContentView fields={fields} data={data} />}
+              {canEdit ? <ContentEditor itemId={item.id} fields={fields} initialData={data} canSubmit /> : <ArticlePreview itemId={item.id} fields={fields} data={data} comments={comments} />}
             </CardContent>
           </Card>
 

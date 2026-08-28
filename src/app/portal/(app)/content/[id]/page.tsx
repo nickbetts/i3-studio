@@ -2,7 +2,7 @@ import { asc, desc, eq } from "drizzle-orm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
-import { ContentView } from "@/components/content-view";
+import { ArticlePreview } from "@/components/content/article-preview";
 import { ContentTimeline } from "@/components/content/content-timeline";
 import { ContentComments } from "@/components/content/content-comments";
 import { WorkflowActions } from "@/components/content/workflow-actions";
@@ -20,7 +20,7 @@ export default async function PortalContentItemPage({ params }: { params: Promis
   const [template, events, comments] = await Promise.all([
     item.templateId ? db.query.contentTemplates.findFirst({ where: eq(contentTemplates.id, item.templateId) }) : null,
     db.select({ id: contentEvents.id, type: contentEvents.type, note: contentEvents.note, createdAt: contentEvents.createdAt, actorName: users.name, actorRole: users.role }).from(contentEvents).leftJoin(users, eq(contentEvents.actorUserId, users.id)).where(eq(contentEvents.contentItemId, id)).orderBy(asc(contentEvents.createdAt)),
-    db.select({ id: contentComments.id, fieldKey: contentComments.fieldKey, body: contentComments.body, resolved: contentComments.resolved, createdAt: contentComments.createdAt, authorName: users.name, authorRole: users.role }).from(contentComments).leftJoin(users, eq(contentComments.authorUserId, users.id)).where(eq(contentComments.contentItemId, id)).orderBy(desc(contentComments.createdAt)),
+    db.select({ id: contentComments.id, fieldKey: contentComments.fieldKey, quote: contentComments.quote, body: contentComments.body, resolved: contentComments.resolved, createdAt: contentComments.createdAt, authorName: users.name, authorRole: users.role }).from(contentComments).leftJoin(users, eq(contentComments.authorUserId, users.id)).where(eq(contentComments.contentItemId, id)).orderBy(desc(contentComments.createdAt)),
   ]);
 
   const fields = (template?.fields as ContentField[]) ?? [];
@@ -40,7 +40,7 @@ export default async function PortalContentItemPage({ params }: { params: Promis
         <div className="space-y-6">
           <Card>
             <CardHeader><CardTitle className="text-base">Content</CardTitle></CardHeader>
-            <CardContent><ContentView fields={fields} data={data} /></CardContent>
+            <CardContent><ArticlePreview itemId={item.id} fields={fields} data={data} comments={comments} /></CardContent>
           </Card>
           {canDecide ? (
             <Card>

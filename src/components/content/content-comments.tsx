@@ -12,12 +12,21 @@ import type { ContentField } from "@/lib/content";
 export type CommentRow = {
   id: string;
   fieldKey: string | null;
+  quote: string | null;
   body: string;
   resolved: boolean;
   createdAt: string | Date;
   authorName: string | null;
   authorRole: string | null;
 };
+
+// Briefly rings a target element so a cross-reference (mark <-> sidebar comment) is easy to spot.
+function flash(el: Element | null) {
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.classList.add("ring-2", "ring-primary", "bg-primary/5");
+  window.setTimeout(() => el.classList.remove("ring-2", "ring-primary", "bg-primary/5"), 1500);
+}
 
 export function ContentComments({ itemId, fields, comments }: { itemId: string; fields: ContentField[]; comments: CommentRow[] }) {
   const [body, setBody] = useState("");
@@ -28,7 +37,7 @@ export function ContentComments({ itemId, fields, comments }: { itemId: string; 
 
   const add = () =>
     start(async () => {
-      await addContentComment(itemId, fieldKey === "general" ? null : fieldKey, body, null);
+      await addContentComment(itemId, { fieldKey: fieldKey === "general" ? null : fieldKey, body });
       setBody("");
       toast.success("Comment added");
     });
@@ -52,14 +61,23 @@ export function ContentComments({ itemId, fields, comments }: { itemId: string; 
       ) : (
         <ul className="space-y-3">
           {comments.map((comment) => (
-            <li key={comment.id} className={`rounded-md border p-3 ${comment.resolved ? "opacity-60" : ""}`}>
+            <li
+              key={comment.id}
+              id={`comment-${comment.id}`}
+              onClick={() => comment.quote && flash(document.querySelector(`mark[data-comment-id="${comment.id}"]`))}
+              className={`rounded-md border p-3 transition-colors ${comment.resolved ? "opacity-60" : ""} ${comment.quote ? "cursor-pointer hover:border-primary/40" : ""}`}
+            >
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-medium">{comment.authorName || "User"}</span>
                 <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}</span>
               </div>
-              {comment.fieldKey ? <p className="mt-0.5 text-xs text-primary">On: {fieldLabel(comment.fieldKey)}</p> : null}
+              {comment.quote ? (
+                <blockquote className="mt-1.5 rounded bg-amber-500/10 px-2 py-1 text-xs text-amber-600 italic dark:text-amber-400">&ldquo;{comment.quote}&rdquo;</blockquote>
+              ) : comment.fieldKey ? (
+                <p className="mt-0.5 text-xs text-primary">On: {fieldLabel(comment.fieldKey)}</p>
+              ) : null}
               <p className="mt-1 whitespace-pre-wrap text-sm">{comment.body}</p>
-              <form action={resolveContentComment} className="mt-2">
+              <form action={resolveContentComment} className="mt-2" onClick={(event) => event.stopPropagation()}>
                 <input type="hidden" name="commentId" value={comment.id} />
                 <Button type="submit" size="sm" variant="ghost">{comment.resolved ? "Reopen" : "Mark resolved"}</Button>
               </form>

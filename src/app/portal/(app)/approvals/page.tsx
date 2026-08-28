@@ -7,10 +7,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
-import { ContentView } from "@/components/content-view";
+import { ArticlePreview } from "@/components/content/article-preview";
 import { WorkflowActions } from "@/components/content/workflow-actions";
 import { db } from "@/db";
-import { contentItems, designAssets, documents } from "@/db/schema";
+import { contentComments, contentItems, designAssets, documents, users } from "@/db/schema";
 import { requireClientUser } from "@/lib/auth-helpers";
 import { CONTENT_STATUS_LABELS, type ContentField, type ContentStatus } from "@/lib/content";
 import { DecisionForm } from "./decision-form";
@@ -31,6 +31,15 @@ export default async function PortalApprovalsPage() {
   const templateIds = [...new Set(content.map((item) => item.templateId).filter((id): id is string => Boolean(id)))];
   const templates = templateIds.length ? await db.query.contentTemplates.findMany({ where: (row, { inArray: inA }) => inA(row.id, templateIds) }) : [];
   const fieldsFor = (templateId: string | null) => (templates.find((t) => t.id === templateId)?.fields as ContentField[]) ?? [];
+
+  const contentComments_ = content.length
+    ? await db
+        .select({ id: contentComments.id, contentItemId: contentComments.contentItemId, fieldKey: contentComments.fieldKey, quote: contentComments.quote, body: contentComments.body, resolved: contentComments.resolved, createdAt: contentComments.createdAt, authorName: users.name, authorRole: users.role })
+        .from(contentComments)
+        .leftJoin(users, eq(contentComments.authorUserId, users.id))
+        .where(inArray(contentComments.contentItemId, content.map((item) => item.id)))
+    : [];
+  const commentsFor = (itemId: string) => contentComments_.filter((comment) => comment.contentItemId === itemId);
 
   const filesPending = files.filter((f) => f.status === "pending").length;
   const designsPending = designs.filter((d) => d.status === "pending").length;
@@ -98,7 +107,7 @@ export default async function PortalApprovalsPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <ContentView fields={fieldsFor(item.templateId)} data={(item.data as Record<string, unknown>) ?? {}} />
+                  <ArticlePreview itemId={item.id} fields={fieldsFor(item.templateId)} data={(item.data as Record<string, unknown>) ?? {}} comments={commentsFor(item.id)} />
                   {item.status === "pending_client" ? <WorkflowActions itemId={item.id} mode="client" /> : null}
                 </CardContent>
               </Card>

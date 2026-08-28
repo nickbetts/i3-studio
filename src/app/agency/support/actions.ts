@@ -31,3 +31,12 @@ export async function updateTicketStatus(ticketId: string, status: "open" | "pen
   await auditLog({ actorUserId: user.id, action: "ticket.status_updated", entityType: "ticket", entityId: ticketId, clientAccountId: ticket.clientAccountId, metadata: { status } });
   revalidatePath("/agency/support");
 }
+
+export async function updateTicketPriority(ticketId: string, priority: "low" | "medium" | "high" | "urgent"): Promise<void> {
+  const user = await requireAgencyUser();
+  const ticket = await db.query.tickets.findFirst({ where: eq(tickets.id, ticketId) });
+  if (!ticket) return;
+  await db.update(tickets).set({ priority, updatedAt: new Date() }).where(eq(tickets.id, ticketId));
+  await auditLog({ actorUserId: user.id, action: "ticket.priority_updated", entityType: "ticket", entityId: ticketId, clientAccountId: ticket.clientAccountId, metadata: { priority } });
+  revalidatePath("/agency/support");
+}

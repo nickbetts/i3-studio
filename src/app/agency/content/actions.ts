@@ -139,15 +139,17 @@ export async function publishContent(itemId: string): Promise<void> {
 }
 
 // ----- Comments (redlines) -------------------------------------------------
-export async function addContentComment(itemId: string, fieldKey: string | null, body: string, parentId: string | null): Promise<void> {
+export type AddCommentInput = { fieldKey?: string | null; quote?: string | null; body: string; parentId?: string | null };
+
+export async function addContentComment(itemId: string, input: AddCommentInput): Promise<void> {
   const actor = await getCurrentUser();
   if (!actor) return;
   const item = await db.query.contentItems.findFirst({ where: eq(contentItems.id, itemId) });
   if (!item) return;
   if (!isAgencyRole(actor.role) && item.clientAccountId !== actor.clientAccountId) return;
-  if (body.trim().length === 0) return;
-  await db.insert(contentComments).values({ contentItemId: itemId, fieldKey: fieldKey || null, body: body.trim(), authorUserId: actor.id, parentId: parentId || null });
-  await auditLog({ actorUserId: actor.id, action: "content.comment", entityType: "content_item", entityId: itemId, clientAccountId: item.clientAccountId, metadata: { fieldKey } });
+  if (input.body.trim().length === 0) return;
+  await db.insert(contentComments).values({ contentItemId: itemId, fieldKey: input.fieldKey || null, quote: input.quote?.trim() || null, body: input.body.trim(), authorUserId: actor.id, parentId: input.parentId || null });
+  await auditLog({ actorUserId: actor.id, action: "content.comment", entityType: "content_item", entityId: itemId, clientAccountId: item.clientAccountId, metadata: { fieldKey: input.fieldKey, hasQuote: Boolean(input.quote) } });
   revalidateItem(itemId);
 }
 

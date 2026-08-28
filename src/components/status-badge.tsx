@@ -31,3 +31,19 @@ export function StatusBadge({ status, label, className }: { status: string; labe
     </span>
   );
 }
+
+const priorityTones: Record<string, string> = {
+  low: "bg-muted text-muted-foreground ring-border",
+  medium: "bg-blue-500/15 text-blue-300 ring-blue-500/30",
+  high: "bg-amber-500/15 text-amber-300 ring-amber-500/30",
+  urgent: "bg-rose-500/15 text-rose-300 ring-rose-500/30",
+};
+
+export function PriorityBadge({ priority, className }: { priority: string; className?: string }) {
+  const tone = priorityTones[priority] ?? "bg-muted text-muted-foreground ring-border";
+  return (
+    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ring-inset", tone, className)}>
+      {priority}
+    </span>
+  );
+}
