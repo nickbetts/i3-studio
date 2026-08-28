@@ -274,6 +274,29 @@ export const approvals = pgTable("approval", {
 });
 
 // ---------------------------------------------------------------------------
+// Client reference files (any type, uploaded by client or agency, no approval)
+// ---------------------------------------------------------------------------
+export const referenceFiles = pgTable(
+  "reference_file",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    clientAccountId: text("client_account_id")
+      .notNull()
+      .references(() => clientAccounts.id, { onDelete: "cascade" }),
+    uploadedByUserId: text("uploaded_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    fileUrl: text("file_url").notNull(),
+    fileName: text("file_name").notNull(),
+    contentType: text("content_type"),
+    size: integer("size"),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("reference_file_client_idx").on(t.clientAccountId)],
+);
+
+// ---------------------------------------------------------------------------
 // Design review — pins + comments
 // ---------------------------------------------------------------------------
 export const designAssets = pgTable(

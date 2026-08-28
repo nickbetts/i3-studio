@@ -21,7 +21,7 @@ export function UploadForm({
   action: (state: UploadState, formData: FormData) => Promise<UploadState>;
   clients?: Client[];
   fixedClientId?: string;
-  kind?: "document" | "design";
+  kind?: "document" | "design" | "reference";
   submitLabel?: string;
 }) {
   const [state, formAction, pending] = useActionState<UploadState, FormData>(action, {});
