@@ -20,6 +20,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
     { href: "/agency", label: "Dashboard", icon: "dashboard" },
     { href: "/agency/clients", label: "Clients", icon: "clients" },
     { href: "/agency/projects", label: "Projects", icon: "projects" },
+    { href: "/agency/content", label: "Content", icon: "content" },
     { href: "/agency/files", label: "Files", icon: "files" },
     { href: "/agency/designs", label: "Designs", icon: "designs" },
     { href: "/agency/support", label: "Support", icon: "support" },

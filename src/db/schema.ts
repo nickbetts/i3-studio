@@ -326,6 +326,8 @@ export const contentItems = pgTable(
     assignedToUserId: text("assigned_to_user_id").references(() => users.id, { onDelete: "set null" }),
     createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
     currentVersion: integer("current_version").notNull().default(0),
+    // Mutable working copy of field values; immutable snapshots live in content_version.
+    data: jsonb("data").notNull().default({}),
     createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
   },
