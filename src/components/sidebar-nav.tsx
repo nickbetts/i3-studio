@@ -26,13 +26,19 @@ export function SidebarNav({ items }: { items: NavItem[] }) {
             key={item.href}
             href={item.href}
             className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all",
               active
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                ? "bg-primary/10 text-foreground"
+                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
             )}
           >
-            <Icon className="size-4" />
+            {active ? <span className="absolute inset-y-1.5 left-0 w-1 rounded-full bg-primary" /> : null}
+            <Icon
+              className={cn(
+                "size-4 shrink-0 transition-colors",
+                active ? "text-primary" : "text-muted-foreground group-hover:text-foreground",
+              )}
+            />
             {item.label}
           </Link>
         );
