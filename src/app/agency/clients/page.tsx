@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
+import { PageHeader } from "@/components/page-header";
 import { db } from "@/db";
 import { clientAccounts, tasks } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
@@ -23,7 +24,7 @@ export default async function AgencyClientsPage() {
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-semibold">Clients</h1><p className="text-muted-foreground">Manage accounts, access and work requests.</p></div>
+      <PageHeader title="Clients" description="Manage accounts, access and work requests." />
       <div className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
         <Card>
           <CardHeader><CardTitle className="text-base">Add a client</CardTitle><CardDescription>Create an account and their first login.</CardDescription></CardHeader>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,7 @@ import { loginAction, type LoginState } from "./actions";
 
 export function LoginForm() {
   const [state, formAction, pending] = useActionState<LoginState, FormData>(loginAction, {});
+  const [show, setShow] = useState(false);
 
   return (
     <div className="relative z-10 w-full max-w-sm">
@@ -26,8 +28,16 @@ export function LoginForm() {
               <Input id="email" name="email" type="email" autoComplete="email" required placeholder="you@company.com" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input id="password" name="password" type="password" autoComplete="current-password" required />
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <a href="mailto:support@i3studio.com?subject=Password%20reset" className="text-xs text-muted-foreground transition-colors hover:text-foreground">Forgot password?</a>
+              </div>
+              <div className="relative">
+                <Input id="password" name="password" type={show ? "text" : "password"} autoComplete="current-password" required className="pr-10" />
+                <button type="button" onClick={() => setShow((value) => !value)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground" aria-label={show ? "Hide password" : "Show password"}>
+                  {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
             </div>
             {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
             <Button type="submit" className="w-full" disabled={pending}>
