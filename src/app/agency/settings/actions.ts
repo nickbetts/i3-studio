@@ -1,12 +1,13 @@
 "use server";
 
 import bcrypt from "bcryptjs";
+import { put } from "@vercel/blob";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { clientAccounts, users } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth-helpers";
+import { requireAdmin, requireAgencyUser } from "@/lib/auth-helpers";
 import { auditLog } from "@/lib/audit";
 
 const teammateSchema = z.object({ name: z.string().trim().min(2), email: z.string().trim().email(), password: z.string().min(8), role: z.enum(["admin", "account_manager"]) });
@@ -22,6 +23,30 @@ export async function createTeammate(formData: FormData): Promise<void> {
   await db.insert(users).values({ name: parsed.data.name, email, passwordHash: await bcrypt.hash(parsed.data.password, 10), role: parsed.data.role, status: "active" });
   await auditLog({ actorUserId: actor.id, action: "teammate.created", entityType: "user", metadata: { email, role: parsed.data.role } });
   revalidatePath("/agency/settings");
+}
+
+export type AvatarState = { error?: string; success?: string };
+
+export async function updateUserAvatar(_prev: AvatarState, formData: FormData): Promise<AvatarState> {
+  const actor = await requireAgencyUser();
+  const userId = String(formData.get("userId") || "");
+  const file = formData.get("file");
+  if (!userId) return { error: "Missing user." };
+  if (actor.role !== "admin" && actor.id !== userId) return { error: "You can only change your own photo." };
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose an image." };
+  if (!file.type.startsWith("image/")) return { error: "Only image files are supported." };
+  if (file.size > 5 * 1024 * 1024) return { error: "Image must be under 5MB." };
+  try {
+    const blob = await put(`avatars/${userId}-${Date.now()}-${file.name}`, file, { access: "public", addRandomSuffix: false });
+    await db.update(users).set({ image: blob.url }).where(eq(users.id, userId));
+    await auditLog({ actorUserId: actor.id, action: "user.avatar_updated", entityType: "user", entityId: userId });
+    revalidatePath("/agency/settings");
+    revalidatePath("/agency/calendar");
+    return { success: "Photo updated." };
+  } catch (error) {
+    console.error("updateUserAvatar failed", error);
+    return { error: "Upload failed. Please try again." };
+  }
 }
 
 export async function updateUserAccess(formData: FormData): Promise<void> {

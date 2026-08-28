@@ -8,10 +8,27 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { deleteAllocation, updateAllocation } from "./actions";
 
 type Block = { id: string; memberUserId: string; title: string; date: Date; endDate: Date | null; startMinute: number; endMinute: number };
-type Member = { id: string; name: string };
+type Member = { id: string; name: string; image?: string | null; color: string };
+
+function initials(value: string) {
+  const base = value.trim();
+  if (!base) return "?";
+  const parts = base.split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return base.slice(0, 2).toUpperCase();
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 const DAY_WIDTH = 160;
 const HALF = DAY_WIDTH / 2;
@@ -73,7 +90,8 @@ export function CalendarGrid({ members, blocks, canEdit }: { members: Member[]; 
   const [editing, setEditing] = useState<Block | null>(null);
   const [pending, startTransition] = useTransition();
 
-  // Re-sync with server data whenever an allocation is added, edited or removed.
+  const memberMap = new Map(members.map((member) => [member.id, member]));
+  const colorFor = (memberId: string) => memberMap.get(memberId)?.color ?? "#6366f1";
   const signature = blocks.map((b) => `${b.id}:${new Date(b.date).getTime()}:${b.endDate ? new Date(b.endDate).getTime() : 0}:${b.startMinute}:${b.endMinute}:${b.memberUserId}:${b.title}`).join("|");
   const [prevSignature, setPrevSignature] = useState(signature);
   if (signature !== prevSignature) {
@@ -219,8 +237,9 @@ export function CalendarGrid({ members, blocks, canEdit }: { members: Member[]; 
               <div key={key} className={`min-h-28 border-b border-r p-2 ${day.getMonth() !== date.getMonth() ? "bg-muted/30 text-muted-foreground" : ""}`}>
                 <p className="text-xs font-medium">{format(day, "EEE d")}</p>
                 {items.map((item) => (
-                  <button type="button" key={item.id} className="mt-1 block w-full truncate rounded bg-primary/15 px-1 py-0.5 text-left text-[10px]" onClick={() => canEdit && setEditing(item)}>
-                    {item.title}
+                  <button type="button" key={item.id} className="mt-1 flex w-full items-center gap-1 truncate rounded px-1 py-0.5 text-left text-[10px]" style={{ backgroundColor: hexToRgba(colorFor(item.memberUserId), 0.16) }} onClick={() => canEdit && setEditing(item)}>
+                    <span className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: colorFor(item.memberUserId) }} />
+                    <span className="truncate">{item.title}</span>
                   </button>
                 ))}
               </div>
@@ -244,15 +263,22 @@ export function CalendarGrid({ members, blocks, canEdit }: { members: Member[]; 
             <div className="flex">
               <div style={{ width: NAME_WIDTH }}>
                 {members.map((member) => (
-                  <div key={member.id} className="flex flex-col justify-center border-b px-3" style={{ height: ROW_HEIGHT }}>
-                    <p className="truncate text-sm font-medium">{member.name}</p>
-                    <p className="text-xs text-muted-foreground">{daysLabel(daysFor(member.id))} this week</p>
+                  <div key={member.id} className="flex items-center gap-3 border-b px-3" style={{ height: ROW_HEIGHT }}>
+                    <span className="h-9 w-1 rounded-full" style={{ backgroundColor: member.color }} />
+                    <Avatar className="size-8">
+                      {member.image ? <AvatarImage src={member.image} alt={member.name} /> : null}
+                      <AvatarFallback className="text-xs font-semibold text-white" style={{ backgroundColor: member.color }}>{initials(member.name)}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{member.name}</p>
+                      <p className="text-xs text-muted-foreground">{daysLabel(daysFor(member.id))} this week</p>
+                    </div>
                   </div>
                 ))}
               </div>
               <div className="relative" style={{ width: 7 * DAY_WIDTH, height: members.length * ROW_HEIGHT }}>
                 {members.map((member, index) => (
-                  <div key={member.id} className="absolute inset-x-0 border-b" style={{ top: index * ROW_HEIGHT, height: ROW_HEIGHT }} />
+                  <div key={member.id} className="absolute inset-x-0 border-b" style={{ top: index * ROW_HEIGHT, height: ROW_HEIGHT, backgroundColor: hexToRgba(member.color, 0.06) }} />
                 ))}
                 {days.map((day, index) => (
                   <div key={day.toISOString()} className="absolute top-0 border-l" style={{ left: index * DAY_WIDTH, width: DAY_WIDTH, height: members.length * ROW_HEIGHT }}>
@@ -268,15 +294,24 @@ export function CalendarGrid({ members, blocks, canEdit }: { members: Member[]; 
                   const clampedEnd = Math.min(14, endHalf);
                   const left = clampedStart * HALF + 3;
                   const width = (clampedEnd - clampedStart) * HALF - 6;
+                  const member = memberMap.get(block.memberUserId);
+                  const color = member?.color ?? "#6366f1";
                   return (
                     <div
                       key={block.id}
+                      title={`${block.title} · ${rangeLabel(block)} · ${daysLabel(blockDays(block))}`}
                       onPointerDown={(event) => beginDrag(block, event)}
-                      className={`absolute flex flex-col justify-center overflow-hidden rounded-md border-l-4 border-primary bg-primary px-3 py-1 text-left text-xs text-primary-foreground shadow-sm ${canEdit ? "cursor-grab touch-none select-none active:cursor-grabbing" : "cursor-default"}`}
-                      style={{ top: memberIndex * ROW_HEIGHT + 6, left, width, height: ROW_HEIGHT - 12 }}
+                      className={`absolute flex items-center gap-2 overflow-hidden rounded-md px-2 py-1 text-left text-xs text-white shadow-sm ring-1 ring-black/10 ${canEdit ? "cursor-grab touch-none select-none active:cursor-grabbing" : "cursor-default"}`}
+                      style={{ top: memberIndex * ROW_HEIGHT + 6, left, width, height: ROW_HEIGHT - 12, backgroundColor: color, borderLeft: `4px solid ${hexToRgba(color, 0.55)}` }}
                     >
-                      <p className="truncate font-medium">{block.title}</p>
-                      <p className="truncate text-[11px] opacity-80">{rangeLabel(block)} · {daysLabel(blockDays(block))}</p>
+                      <Avatar className="size-6 shrink-0 ring-1 ring-white/40">
+                        {member?.image ? <AvatarImage src={member.image} alt={member.name} /> : null}
+                        <AvatarFallback className="bg-black/25 text-[10px] font-semibold text-white">{initials(member?.name ?? "?")}</AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">{block.title}</p>
+                        <p className="truncate text-[11px] text-white/85">{rangeLabel(block)} · {daysLabel(blockDays(block))}</p>
+                      </div>
                       {canEdit ? (
                         <span
                           aria-label="Resize block"
@@ -336,7 +371,7 @@ export function CalendarGrid({ members, blocks, canEdit }: { members: Member[]; 
                 </div>
               </div>
               <div className="flex justify-between">
-                <Button variant="destructive" onClick={() => remove(editing.id)} disabled={pending}>Remove</Button>
+                <Button variant="destructive" onClick={() => { if (window.confirm("Remove this time block?")) remove(editing.id); }} disabled={pending}>Remove</Button>
                 <Button onClick={saveEdit} disabled={pending}>Save changes</Button>
               </div>
             </div>
