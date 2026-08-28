@@ -14,7 +14,7 @@ import { contentItems, designAssets, documents } from "@/db/schema";
 import { requireClientUser } from "@/lib/auth-helpers";
 import { CONTENT_STATUS_LABELS, type ContentField, type ContentStatus } from "@/lib/content";
 import { DecisionForm } from "./decision-form";
-import { DesignReview } from "../designs/design-review";
+import { DesignCanvasDialog } from "@/components/design-review/design-canvas-dialog";
 
 export default async function PortalApprovalsPage() {
   const user = await requireClientUser();
@@ -70,21 +70,15 @@ export default async function PortalApprovalsPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="designs" className="space-y-4 pt-2">
+        <TabsContent value="designs" className="pt-2">
           {designs.length === 0 ? (
             <EmptyState icon={ImageIcon} title="Nothing to review" description="Designs shared for review will appear here." />
           ) : (
-            designs.map((design) => (
-              <Card key={design.id}>
-                <CardHeader>
-                  <CardTitle className="text-base">{design.title}</CardTitle>
-                  <CardDescription>Click anywhere on the design to leave a pin and comment.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <DesignReview designId={design.id} imageUrl={design.imageUrl} title={design.title} annotations={design.annotations} />
-                </CardContent>
-              </Card>
-            ))
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {designs.map((design) => (
+                <DesignCanvasDialog key={design.id} designId={design.id} imageUrl={design.imageUrl} title={design.title} status={design.status} annotations={design.annotations} />
+              ))}
+            </div>
           )}
         </TabsContent>
 
