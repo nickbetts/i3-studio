@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { ticketMessages, tickets, users } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
 import { auditLog } from "@/lib/audit";
-import { sendMail } from "@/lib/mailgun";
+import { queueMail } from "@/lib/mailgun";
 
 export async function replyToTicket(ticketId: string, body: string): Promise<void> {
   const user = await requireAgencyUser();
@@ -17,7 +17,7 @@ export async function replyToTicket(ticketId: string, body: string): Promise<voi
   await db.update(tickets).set({ status: "pending", assignedToUserId: user.id, updatedAt: new Date() }).where(eq(tickets.id, ticketId));
   if (client?.email) {
     const domain = process.env.MAILGUN_DOMAIN || "localhost";
-    await sendMail({ to: client.email, subject: `Re: ${ticket.subject}`, text: body.trim(), replyTo: `ticket-${ticket.id}@${domain}` });
+    await queueMail({ to: client.email, subject: `Re: ${ticket.subject}`, text: body.trim(), replyTo: `ticket-${ticket.id}@${domain}` });
   }
   await auditLog({ actorUserId: user.id, action: "ticket.replied", entityType: "ticket", entityId: ticketId, clientAccountId: ticket.clientAccountId });
   revalidatePath("/agency/support");

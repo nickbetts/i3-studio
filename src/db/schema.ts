@@ -504,6 +504,23 @@ export const ticketMessages = pgTable(
   (t) => [index("ticket_message_ticket_idx").on(t.ticketId)],
 );
 
+export const emailOutbox = pgTable(
+  "app_email_outbox",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    recipient: text("recipient").notNull(),
+    subject: text("subject").notNull(),
+    body: text("body").notNull(),
+    replyTo: text("reply_to"),
+    attempts: integer("attempts").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { mode: "date" }).notNull().defaultNow(),
+    sentAt: timestamp("sent_at", { mode: "date" }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("app_email_outbox_pending_idx").on(t.sentAt, t.nextAttemptAt)],
+);
+
 // ---------------------------------------------------------------------------
 // Float-style calendar
 // ---------------------------------------------------------------------------
