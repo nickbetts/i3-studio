@@ -1,12 +1,14 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { contentComments, contentEvents, contentItems, contentTemplates, contentVersions } from "@/db/schema";
 import { getCurrentUser, isAgencyRole, requireAgencyUser, requireClientUser } from "@/lib/auth-helpers";
 import { auditLog } from "@/lib/audit";
 import { DEFAULT_TEMPLATE_FIELDS, type ContentField, type ContentStatus } from "@/lib/content";
+import { safeContentData } from "@/lib/safe-html";
+import { canEditContent, canReadContent, canReviewContent } from "@/lib/content-policy";
 
 type Actor = { id: string; role: string };
 
@@ -15,6 +17,7 @@ function revalidateItem(id: string) {
   revalidatePath(`/agency/content/${id}`);
   revalidatePath("/portal/content");
   revalidatePath(`/portal/content/${id}`);
+  revalidatePath("/portal/approvals");
 }
 
 async function logEvent(itemId: string, actor: Actor, type: string, fromStatus: ContentStatus | null, toStatus: ContentStatus | null, note?: string, clientAccountId?: string) {
@@ -22,12 +25,30 @@ async function logEvent(itemId: string, actor: Actor, type: string, fromStatus: 
   await auditLog({ actorUserId: actor.id, action: `content.${type}`, entityType: "content_item", entityId: itemId, clientAccountId: clientAccountId ?? null, metadata: { fromStatus, toStatus, note } });
 }
 
-async function snapshot(itemId: string, data: unknown, authorId: string, note: string) {
-  const [item] = await db.select({ v: contentItems.currentVersion }).from(contentItems).where(eq(contentItems.id, itemId));
-  const next = (item?.v ?? 0) + 1;
-  await db.insert(contentVersions).values({ contentItemId: itemId, version: next, data: data as object, authorUserId: authorId, note });
-  await db.update(contentItems).set({ currentVersion: next }).where(eq(contentItems.id, itemId));
-  return next;
+async function transition(item: typeof contentItems.$inferSelect, actor: Actor, nextStatus: ContentStatus, event: string, note: string, data?: Record<string, unknown>) {
+  const isSnapshot = data !== undefined;
+  const result = await db.execute(sql`
+    WITH moved AS (
+      UPDATE content_item SET status = ${nextStatus}::content_status,
+        data = ${JSON.stringify(data ?? item.data)}::jsonb,
+        current_version = current_version + ${isSnapshot ? 1 : 0}, updated_at = ${new Date().toISOString()}::timestamp
+      WHERE id = ${item.id} AND status = ${item.status}::content_status AND current_version = ${item.currentVersion}
+        AND date_trunc('milliseconds', updated_at) = ${item.updatedAt.toISOString()}::timestamp
+      RETURNING *
+    ), snapshot AS (
+      INSERT INTO content_version (id, content_item_id, version, data, author_user_id, note)
+      SELECT ${crypto.randomUUID()}, id, current_version, data, ${actor.id}, ${note} FROM moved WHERE ${isSnapshot}
+    ), event AS (
+      INSERT INTO content_event (id, content_item_id, actor_user_id, actor_role, type, from_status, to_status, note)
+      SELECT ${crypto.randomUUID()}, id, ${actor.id}, ${actor.role}, ${event}, ${item.status}, ${nextStatus}, ${note} FROM moved
+    ), audit AS (
+      INSERT INTO audit_log (id, actor_user_id, action, entity_type, entity_id, client_account_id, metadata)
+      SELECT ${crypto.randomUUID()}, ${actor.id}, ${`content.${event}`}, 'content_item', id, client_account_id,
+        jsonb_build_object('fromStatus', ${item.status}::text, 'toStatus', ${nextStatus}::text, 'version', current_version, 'note', ${note}::text) FROM moved
+    ) SELECT id FROM moved
+  `);
+  if (!result.rows.length) throw new Error("This item changed. Reload before continuing.");
+  revalidateItem(item.id);
 }
 
 // ----- Templates -----------------------------------------------------------
@@ -81,52 +102,39 @@ export async function createContentItem(formData: FormData): Promise<void> {
 }
 
 export async function saveDraft(itemId: string, data: Record<string, unknown>): Promise<void> {
-  const actor = await getCurrentUser();
-  if (!actor || !isAgencyRole(actor.role)) return;
-  await db.update(contentItems).set({ data, updatedAt: new Date() }).where(eq(contentItems.id, itemId));
-  await auditLog({ actorUserId: actor.id, action: "content.draft_saved", entityType: "content_item", entityId: itemId });
-  revalidateItem(itemId);
+  const actor = await requireAgencyUser();
+  const item = await db.query.contentItems.findFirst({ where: eq(contentItems.id, itemId) });
+  if (!item || !canEditContent(actor, item)) throw new Error("This content cannot be edited.");
+  await transition(item, actor, item.status, "draft_saved", "Draft saved", safeContentData(data));
 }
 
 export async function submitForReview(itemId: string, data: Record<string, unknown>): Promise<void> {
   const actor = await requireAgencyUser();
   const item = await db.query.contentItems.findFirst({ where: eq(contentItems.id, itemId) });
-  if (!item || !["draft", "am_changes", "client_changes"].includes(item.status)) return;
-  await db.update(contentItems).set({ data, status: "pending_am", updatedAt: new Date() }).where(eq(contentItems.id, itemId));
-  await snapshot(itemId, data, actor.id, "Submitted for review");
-  await logEvent(itemId, actor, "submitted", item.status as ContentStatus, "pending_am", undefined, item.clientAccountId);
-  revalidateItem(itemId);
+  if (!item || !canEditContent(actor, item)) throw new Error("This content cannot be submitted.");
+  const cleaned = safeContentData(data);
+  const template = item.templateId ? await db.query.contentTemplates.findFirst({ where: eq(contentTemplates.id, item.templateId) }) : null;
+  const fields = (template?.fields ?? []) as ContentField[];
+  if (fields.some((field) => field.required && !String(cleaned[field.key] ?? "").replace(/<[^>]*>/g, "").trim())) throw new Error("Complete all required fields.");
+  await transition(item, actor, "pending_am", "submitted", "Submitted for review", cleaned);
 }
 
 export async function amDecision(itemId: string, decision: "approve" | "changes", note: string): Promise<void> {
   const actor = await getCurrentUser();
-  if (!actor || (actor.role !== "admin" && actor.role !== "account_manager")) return;
+  if (!actor) throw new Error("Sign in to continue.");
   const item = await db.query.contentItems.findFirst({ where: eq(contentItems.id, itemId) });
-  if (!item || item.status !== "pending_am") return;
-  if (decision === "approve") {
-    await db.update(contentItems).set({ status: "pending_client", updatedAt: new Date() }).where(eq(contentItems.id, itemId));
-    await logEvent(itemId, actor, "am_approved", "pending_am", "pending_client", note || undefined, item.clientAccountId);
-    await logEvent(itemId, actor, "sent_to_client", "pending_am", "pending_client", undefined, item.clientAccountId);
-  } else {
-    await db.update(contentItems).set({ status: "am_changes", updatedAt: new Date() }).where(eq(contentItems.id, itemId));
-    await logEvent(itemId, actor, "am_changes", "pending_am", "am_changes", note || undefined, item.clientAccountId);
-  }
-  revalidateItem(itemId);
+  const latest = await db.query.contentVersions.findFirst({ where: eq(contentVersions.contentItemId, itemId), orderBy: desc(contentVersions.version) });
+  if (!item || !canReviewContent(actor, item, latest?.authorUserId ?? item.createdByUserId)) throw new Error("A different manager must review this submission.");
+  if (!["approve", "changes"].includes(decision) || (decision === "changes" && !note.trim())) throw new Error("Provide a valid decision and reason.");
+  await transition(item, actor, decision === "approve" ? "pending_client" : "am_changes", decision === "approve" ? "am_approved" : "am_changes", note.slice(0, 10000));
 }
 
 export async function clientDecision(itemId: string, decision: "approve" | "changes", note: string): Promise<void> {
   const actor = await requireClientUser();
   const item = await db.query.contentItems.findFirst({ where: eq(contentItems.id, itemId) });
-  if (!item || item.clientAccountId !== actor.clientAccountId || item.status !== "pending_client") return;
-  if (decision === "approve") {
-    await db.update(contentItems).set({ status: "approved", updatedAt: new Date() }).where(eq(contentItems.id, itemId));
-    await snapshot(itemId, item.data, actor.id, "Client approved");
-    await logEvent(itemId, actor, "client_approved", "pending_client", "approved", note || undefined, item.clientAccountId);
-  } else {
-    await db.update(contentItems).set({ status: "client_changes", updatedAt: new Date() }).where(eq(contentItems.id, itemId));
-    await logEvent(itemId, actor, "client_changes", "pending_client", "client_changes", note || undefined, item.clientAccountId);
-  }
-  revalidateItem(itemId);
+  if (!item || !canReadContent(actor, item) || item.status !== "pending_client") throw new Error("This item is not awaiting your approval.");
+  if (!["approve", "changes"].includes(decision) || (decision === "changes" && !note.trim())) throw new Error("Provide a valid decision and reason.");
+  await transition(item, actor, decision === "approve" ? "approved" : "client_changes", decision === "approve" ? "client_approved" : "client_changes", note.slice(0, 10000));
 }
 
 export async function publishContent(itemId: string): Promise<void> {
@@ -134,9 +142,7 @@ export async function publishContent(itemId: string): Promise<void> {
   if (!actor || (actor.role !== "admin" && actor.role !== "account_manager")) return;
   const item = await db.query.contentItems.findFirst({ where: eq(contentItems.id, itemId) });
   if (!item || item.status !== "approved") return;
-  await db.update(contentItems).set({ status: "published", updatedAt: new Date() }).where(eq(contentItems.id, itemId));
-  await logEvent(itemId, actor, "published", "approved", "published", undefined, item.clientAccountId);
-  revalidateItem(itemId);
+  await transition(item, actor, "published", "published", "Marked as published");
 }
 
 // ----- Comments (redlines) -------------------------------------------------

@@ -5,6 +5,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import { Bold, Heading1, Heading2, Heading3, Italic, Link as LinkIcon, List, ListOrdered, Quote, Redo2, Strikethrough, Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { safeHtml } from "@/lib/safe-html";
 
 const contentClass =
   "min-h-55 px-3 py-2 text-sm focus:outline-none [&_h1]:mt-3 [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:mt-3 [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mt-2 [&_h3]:text-lg [&_h3]:font-semibold [&_p]:my-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_a]:text-primary [&_a]:underline [&_strong]:font-semibold";
@@ -26,8 +27,8 @@ function ToolbarButton({ active, onClick, label, children }: { active?: boolean;
 
 export function RichTextEditor({ value, onChange }: { value: string; onChange: (html: string) => void }) {
   const editor = useEditor({
-    extensions: [StarterKit, Link.configure({ openOnClick: false, autolink: true })],
-    content: value || "",
+    extensions: [StarterKit.configure({ link: false }), Link.configure({ openOnClick: false, autolink: true })],
+    content: safeHtml(value || ""),
     editable: true,
     immediatelyRender: false,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
@@ -74,5 +75,5 @@ export function RichTextEditor({ value, onChange }: { value: string; onChange: (
 // Read-only renderer for stored TipTap HTML (authored by trusted internal users).
 export function RichTextView({ html }: { html: string }) {
   if (!html) return <p className="text-sm text-muted-foreground">No content.</p>;
-  return <div className={cn("text-sm", contentClass, "min-h-0 px-0 py-0")} dangerouslySetInnerHTML={{ __html: html }} />;
+  return <div className={cn("text-sm", contentClass, "min-h-0 px-0 py-0")} dangerouslySetInnerHTML={{ __html: safeHtml(html) }} />;
 }

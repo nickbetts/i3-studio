@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { accountManagerAssignments, clientAccounts, onboardingSubmissions, tasks, users } from "@/db/schema";
-import { requireAgencyUser } from "@/lib/auth-helpers";
+import { requireManager } from "@/lib/auth-helpers";
 import { auditLog } from "@/lib/audit";
 
 const clientSchema = z.object({
@@ -29,7 +29,7 @@ function slugify(value: string) {
 }
 
 export async function createClient(formData: FormData): Promise<void> {
-  const actor = await requireAgencyUser();
+  const actor = await requireManager();
   const parsed = clientSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
@@ -70,7 +70,7 @@ export async function createClient(formData: FormData): Promise<void> {
 }
 
 export async function createTask(formData: FormData): Promise<void> {
-  const actor = await requireAgencyUser();
+  const actor = await requireManager();
   const parsed = taskSchema.safeParse({
     clientAccountId: formData.get("clientAccountId"),
     title: formData.get("title"),
@@ -95,7 +95,7 @@ export async function createTask(formData: FormData): Promise<void> {
 }
 
 export async function updateTaskStatus(taskId: string, status: "open" | "in_progress" | "blocked" | "done"): Promise<void> {
-  const actor = await requireAgencyUser();
+  const actor = await requireManager();
   const task = await db.query.tasks.findFirst({ where: eq(tasks.id, taskId) });
   if (!task) return;
   await db.update(tasks).set({ status, updatedAt: new Date() }).where(and(eq(tasks.id, taskId), eq(tasks.clientAccountId, task.clientAccountId)));
@@ -105,7 +105,7 @@ export async function updateTaskStatus(taskId: string, status: "open" | "in_prog
 }
 
 export async function resetClientOnboarding(formData: FormData): Promise<void> {
-  const actor = await requireAgencyUser();
+  const actor = await requireManager();
   const clientAccountId = String(formData.get("clientAccountId") || "");
   if (!clientAccountId) return;
   await db.delete(onboardingSubmissions).where(eq(onboardingSubmissions.clientAccountId, clientAccountId));

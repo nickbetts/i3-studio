@@ -30,7 +30,7 @@ export function LoginForm() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
-                <a href="mailto:support@i3studio.com?subject=Password%20reset" className="text-xs text-muted-foreground transition-colors hover:text-foreground">Forgot password?</a>
+                <a href="/forgot-password" className="text-xs text-muted-foreground transition-colors hover:text-foreground">Forgot password?</a>
               </div>
               <div className="relative">
                 <Input id="password" name="password" type={show ? "text" : "password"} autoComplete="current-password" required className="pr-10" />

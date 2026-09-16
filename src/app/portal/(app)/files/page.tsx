@@ -84,7 +84,7 @@ export default async function PortalFilesPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline">{mine ? "You" : row.uploaderRole === "client" ? row.uploaderName || "Your team" : "i3 Studio"}</Badge>
-                      <Button size="sm" variant="ghost" asChild><a href={row.fileUrl} target="_blank" rel="noreferrer"><Download className="size-4" />Download</a></Button>
+                      <Button size="sm" variant="ghost" asChild><a href={`/api/files/reference/${row.id}`}><Download className="size-4" />Download</a></Button>
                       {mine ? (
                         <ConfirmButton action={deleteReference} hidden={{ id: row.id }} label="Delete" title="Delete this file?" description="This removes the reference file for everyone." confirmLabel="Delete" variant="ghost" />
                       ) : null}

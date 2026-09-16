@@ -438,6 +438,7 @@ export const annotations = pgTable(
     designAssetId: text("design_asset_id")
       .notNull()
       .references(() => designAssets.id, { onDelete: "cascade" }),
+    version: integer("version").notNull().default(1),
     // Normalised position 0..1 relative to the image.
     x: real("x").notNull(),
     y: real("y").notNull(),

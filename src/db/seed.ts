@@ -115,6 +115,9 @@ async function wipeClientDemoData(clientAccountId: string) {
 const img = (seed: string) => `https://picsum.photos/seed/${seed}/1200/675`;
 
 async function main() {
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL || process.env.ALLOW_DESTRUCTIVE_DEMO_SEED !== "yes-reset-demo-data") {
+    throw new Error("Demo seeding is disabled. Only use an isolated development database with ALLOW_DESTRUCTIVE_DEMO_SEED=yes-reset-demo-data.");
+  }
   const [org] = await db
     .insert(organizations)
     .values({ name: "i3 Studio", slug: "i3-studio" })

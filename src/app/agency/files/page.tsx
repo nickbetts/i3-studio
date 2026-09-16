@@ -104,7 +104,7 @@ export default async function AgencyFilesPage({ searchParams }: { searchParams: 
                     <div className="flex items-center gap-2">
                       <StatusBadge status={file.status} />
                       <Button size="sm" variant="ghost" asChild>
-                        <a href={file.fileUrl} target="_blank" rel="noreferrer"><Download className="size-4" />Download</a>
+                        <a href={`/api/files/document/${file.id}`}><Download className="size-4" />Download</a>
                       </Button>
                     </div>
                   </div>

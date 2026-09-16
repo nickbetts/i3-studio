@@ -37,11 +37,14 @@ tasks, file approvals, a Float-style scheduling calendar and support tickets.
    pnpm install
    ```
 
-3. Push the schema to your database and seed demo data:
+3. Push the schema to your database and prepare additive production safeguards:
 
    ```bash
    pnpm db:push      # or: pnpm db:migrate to apply generated migrations
-   pnpm db:seed
+   pnpm db:prepare-production
+
+   # Development/demo only: requires an isolated DB and explicit opt-in.
+   ALLOW_DESTRUCTIVE_DEMO_SEED=yes-reset-demo-data pnpm db:seed
    ```
 
 4. Run the dev server:
@@ -67,6 +70,9 @@ tasks, file approvals, a Float-style scheduling calendar and support tickets.
 - `pnpm db:push` – push schema directly (dev)
 - `pnpm db:studio` – open Drizzle Studio
 - `pnpm db:seed` – seed demo org, users and a client account
+- `pnpm db:prepare-production` – add authentication, upload, and webhook safety tables without resetting data
+- `pnpm test` – unit/security regression tests
+- `pnpm test:e2e` – authenticated Playwright workflows against an isolated fixture tenant
 
 ## Build phases
 

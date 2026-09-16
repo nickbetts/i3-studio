@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { StatusBadge } from "@/components/status-badge";
 import { DesignReview, type DesignAnnotation } from "./design-review";
 import { uploadDesignVersion, type UploadVersionState } from "./actions";
+import { prepareUpload } from "@/lib/upload-client";
 
 export type DesignVersion = { version: number; imageUrl: string; status: string; createdAt: string | Date };
 
@@ -39,11 +40,15 @@ export function DesignCanvasDialog({
   const [open, setOpen] = useState(false);
   const sorted = [...versions].sort((a, b) => b.version - a.version);
   const latest = sorted[0];
-  const [viewingVersion, setViewingVersion] = useState(latest?.version ?? 1);
+  const [selectedVersion, setViewingVersion] = useState<number | null>(null);
+  const viewingVersion = selectedVersion ?? latest?.version ?? 1;
   const viewing = sorted.find((v) => v.version === viewingVersion) ?? latest;
   const isLatest = viewing?.version === latest?.version;
 
-  const [uploadState, uploadAction, uploadPending] = useActionState<UploadVersionState, FormData>(uploadDesignVersion, {});
+  const [uploadState, uploadAction, uploadPending] = useActionState<UploadVersionState, FormData>(async (previous, form) => {
+    try { return await uploadDesignVersion(previous, await prepareUpload(form, "version")); }
+    catch (error) { return { error: error instanceof Error ? error.message : "Upload failed." }; }
+  }, {});
   const fileRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -122,17 +127,14 @@ export function DesignCanvasDialog({
 
           {isLatest ? (
             <div className="p-4 pt-2">
-              <DesignReview designId={designId} imageUrl={viewing?.imageUrl ?? imageUrl} title={title} annotations={annotations} canDelete={canDelete} />
+              <DesignReview key={viewingVersion} designId={designId} version={viewingVersion} imageUrl={viewing?.imageUrl ?? imageUrl} title={title} annotations={annotations.filter((annotation) => annotation.version === viewingVersion)} canDelete={canDelete} />
             </div>
           ) : (
             <div className="space-y-3 p-4 pt-2">
               <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
                 Viewing version {viewing?.version} from {viewing ? format(new Date(viewing.createdAt), "d MMM yyyy") : ""}. Comments can only be added on the latest version — switch above to comment.
               </div>
-              <div className="flex max-h-[70vh] items-center justify-center overflow-auto rounded-lg border bg-[radial-gradient(circle,var(--color-border)_1px,transparent_1px)] bg-size-[16px_16px] p-6">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={viewing?.imageUrl} alt={`${title} — version ${viewing?.version}`} className="block max-h-[60vh] w-auto max-w-full rounded-sm shadow-2xl" />
-              </div>
+              <DesignReview key={viewingVersion} designId={designId} version={viewingVersion} imageUrl={viewing?.imageUrl ?? imageUrl} title={title} annotations={annotations.filter((annotation) => annotation.version === viewingVersion)} readOnly canDelete={canDelete} />
             </div>
           )}
         </DialogContent>

@@ -10,12 +10,13 @@ import { db } from "@/db";
 import { contentComments, contentEvents, contentItems, contentTemplates, contentVersions, users } from "@/db/schema";
 import { requireClientUser } from "@/lib/auth-helpers";
 import { CONTENT_STATUS_LABELS, type ContentField, type ContentStatus } from "@/lib/content";
+import { canReadContent } from "@/lib/content-policy";
 
 export default async function PortalContentItemPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireClientUser();
   const { id } = await params;
   const item = await db.query.contentItems.findFirst({ where: eq(contentItems.id, id) });
-  if (!item || item.clientAccountId !== user.clientAccountId) return <Card><CardContent className="pt-6">Content not found.</CardContent></Card>;
+  if (!item || !canReadContent(user, item)) return <Card><CardContent className="pt-6">Content not found.</CardContent></Card>;
 
   const [template, events, comments, versions] = await Promise.all([
     item.templateId ? db.query.contentTemplates.findFirst({ where: eq(contentTemplates.id, item.templateId) }) : null,

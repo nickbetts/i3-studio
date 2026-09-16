@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { projectMilestones, projects } from "@/db/schema";
-import { requireAgencyUser } from "@/lib/auth-helpers";
+import { requireManager } from "@/lib/auth-helpers";
 import { auditLog } from "@/lib/audit";
 import { and, eq } from "drizzle-orm";
 
@@ -17,7 +17,7 @@ const templates: Record<string, string[]> = {
 };
 
 export async function createProject(formData: FormData): Promise<void> {
-  const actor = await requireAgencyUser();
+  const actor = await requireManager();
   const parsed = schema.safeParse({ clientAccountId: formData.get("clientAccountId"), name: formData.get("name"), projectType: formData.get("projectType") || "brochure_site" });
   if (!parsed.success) return;
   const client = await db.query.clientAccounts.findFirst({ where: (account, { eq }) => eq(account.id, parsed.data.clientAccountId) });
@@ -30,7 +30,7 @@ export async function createProject(formData: FormData): Promise<void> {
 }
 
 export async function updateProjectStatus(formData: FormData): Promise<void> {
-  const actor = await requireAgencyUser();
+  const actor = await requireManager();
   const projectId = String(formData.get("projectId") || "");
   const status = String(formData.get("status") || "active");
   if (!projectId || !["active", "paused", "completed"].includes(status)) return;
@@ -44,7 +44,7 @@ export async function updateProjectStatus(formData: FormData): Promise<void> {
 }
 
 export async function updateMilestone(formData: FormData): Promise<void> {
-  const actor = await requireAgencyUser();
+  const actor = await requireManager();
   const milestoneId = String(formData.get("milestoneId") || "");
   const projectId = String(formData.get("projectId") || "");
   const title = String(formData.get("title") || "").trim();
@@ -61,7 +61,7 @@ export async function updateMilestone(formData: FormData): Promise<void> {
 }
 
 export async function addMilestone(formData: FormData): Promise<void> {
-  const actor = await requireAgencyUser();
+  const actor = await requireManager();
   const projectId = String(formData.get("projectId") || "");
   const title = String(formData.get("title") || "").trim();
   const dueDate = String(formData.get("dueDate") || "");
@@ -74,7 +74,7 @@ export async function addMilestone(formData: FormData): Promise<void> {
 }
 
 export async function deleteMilestone(formData: FormData): Promise<void> {
-  const actor = await requireAgencyUser();
+  const actor = await requireManager();
   const milestoneId = String(formData.get("milestoneId") || "");
   const projectId = String(formData.get("projectId") || "");
   if (!milestoneId || !projectId) return;

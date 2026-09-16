@@ -25,7 +25,7 @@ export default async function PortalApprovalsPage() {
       where: eq(designAssets.clientAccountId, user.clientAccountId),
       orderBy: desc(designAssets.createdAt),
       with: {
-        annotations: { with: { comments: { with: { author: true } } } },
+        annotations: { with: { comments: { with: { author: { columns: { id: true, name: true, email: true, role: true } } } } } },
         versions: { orderBy: (version, { desc: descOrder }) => [descOrder(version.version)] },
       },
     }),
@@ -78,7 +78,7 @@ export default async function PortalApprovalsPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <a className="text-sm underline underline-offset-4" href={file.fileUrl} target="_blank" rel="noreferrer">Open {file.fileName}</a>
+                  <a className="text-sm underline underline-offset-4" href={`/api/files/document/${file.id}`}>Download {file.fileName}</a>
                   {file.status === "pending" ? <DecisionForm documentId={file.id} /> : <p className="text-sm text-muted-foreground">This item has been {file.status.replace("_", " ")}.</p>}
                 </CardContent>
               </Card>

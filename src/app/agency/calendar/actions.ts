@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { allocations } from "@/db/schema";
-import { requireAgencyUser } from "@/lib/auth-helpers";
+import { requireManager } from "@/lib/auth-helpers";
 import { auditLog } from "@/lib/audit";
 
 // Allocations are tracked in whole/half days. startMinute 0 = morning, 720 = afternoon.
@@ -20,7 +20,7 @@ const createSchema = z.object({
 });
 
 export async function createAllocation(formData: FormData): Promise<void> {
-  const actor = await requireAgencyUser();
+  const actor = await requireManager();
   const parsed = createSchema.safeParse({
     memberUserId: formData.get("memberUserId"),
     title: formData.get("title"),
@@ -53,7 +53,7 @@ export async function createAllocation(formData: FormData): Promise<void> {
 }
 
 export async function deleteAllocation(allocationId: string): Promise<void> {
-  const actor = await requireAgencyUser();
+  const actor = await requireManager();
   await db.delete(allocations).where(eq(allocations.id, allocationId));
   await auditLog({ actorUserId: actor.id, action: "allocation.deleted", entityType: "allocation", entityId: allocationId });
   revalidatePath("/agency/calendar");
@@ -69,7 +69,7 @@ type AllocationUpdate = {
 };
 
 export async function updateAllocation(allocationId: string, update: AllocationUpdate): Promise<void> {
-  const actor = await requireAgencyUser();
+  const actor = await requireManager();
   if (update.date && update.endDate && update.date === update.endDate && update.startMinute != null && update.endMinute != null && update.endMinute <= update.startMinute) return;
   await db
     .update(allocations)

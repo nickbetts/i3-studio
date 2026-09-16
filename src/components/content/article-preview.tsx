@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { addContentComment } from "@/app/agency/content/actions";
 import type { ContentField, FaqEntry } from "@/lib/content";
 import type { CommentRow } from "./content-comments";
+import { safeHtml } from "@/lib/safe-html";
 
 const proseClass =
   "space-y-4 text-[15px] leading-7 [&_h1]:mt-6 [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:mt-6 [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mt-4 [&_h3]:text-lg [&_h3]:font-semibold [&_p]:my-3 [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-5 [&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_a]:text-primary [&_a]:underline [&_strong]:font-semibold";
@@ -149,7 +150,7 @@ export function ArticlePreview({
         const value = String(data[field.key] ?? "").trim();
         return (
           <div key={field.key} data-field={field.key} className={proseClass}>
-            {value ? <div dangerouslySetInnerHTML={{ __html: value }} /> : <p className="text-muted-foreground">No content yet.</p>}
+            {value ? <div dangerouslySetInnerHTML={{ __html: safeHtml(value) }} /> : <p className="text-muted-foreground">No content yet.</p>}
           </div>
         );
       })}

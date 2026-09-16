@@ -12,23 +12,23 @@ import { addAnnotationComment, createAnnotation, deleteAnnotationComment, resolv
 const AGENCY_ROLES = ["admin", "account_manager", "content_writer"];
 
 export type DesignAnnotationComment = { id: string; body: string; authorUserId?: string | null; authorName?: string | null; authorRole?: string | null; createdAt: string | Date };
-export type DesignAnnotation = { id: string; x: number; y: number; resolved: boolean; comments: DesignAnnotationComment[] };
+export type DesignAnnotation = { id: string; version: number; x: number; y: number; resolved: boolean; comments: DesignAnnotationComment[] };
 
-export function DesignReview({ designId, imageUrl, title, annotations, canDelete = false }: { designId: string; imageUrl: string; title: string; annotations: DesignAnnotation[]; canDelete?: boolean }) {
+export function DesignReview({ designId, imageUrl, title, annotations, version, readOnly = false, canDelete = false }: { designId: string; imageUrl: string; title: string; annotations: DesignAnnotation[]; version: number; readOnly?: boolean; canDelete?: boolean }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
 
   function addPin(event: React.MouseEvent<HTMLDivElement>) {
-    if (selected) return;
+    if (readOnly) return;
     const bounds = event.currentTarget.getBoundingClientRect();
     const x = (event.clientX - bounds.left) / bounds.width;
     const y = (event.clientY - bounds.top) / bounds.height;
     const body = window.prompt("Add a comment for this pin");
     if (!body?.trim()) return;
     startTransition(async () => {
-      await createAnnotation(designId, x, y, body);
-      toast.success("Comment added");
+      try { await createAnnotation(designId, x, y, body, version); toast.success("Comment added"); }
+      catch { toast.error("Unable to comment. Reload the latest revision."); }
     });
   }
 
@@ -132,7 +132,7 @@ export function DesignReview({ designId, imageUrl, title, annotations, canDelete
                     );
                   })}
                 </div>
-                {selected === annotation.id ? (
+                {selected === annotation.id && !readOnly ? (
                   <div className="mt-3 space-y-2" onClick={(event) => event.stopPropagation()}>
                     <Input ref={inputRef} placeholder="Reply to this pin" onKeyDown={(event) => event.key === "Enter" && comment(annotation.id)} />
                     <div className="flex gap-2">

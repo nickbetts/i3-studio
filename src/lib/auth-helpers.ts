@@ -1,24 +1,39 @@
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { auth } from "@/auth";
 import type { AppRole } from "@/types/next-auth";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { credentialVersion } from "@/lib/credential-version";
 
 export async function getSession() {
   return auth();
 }
 
-export async function getCurrentUser() {
+const userColumns = { id: true, name: true, email: true, image: true, role: true, status: true, clientAccountId: true } as const;
+
+export async function getAuthenticatedUser() {
   const session = await auth();
-  if (!session?.user) return null;
+  if (!session?.user?.id) return null;
+  const current = await db.query.users.findFirst({ where: eq(users.id, session.user.id), columns: { ...userColumns, passwordHash: true } });
+  if (!current || current.status !== "active") return null;
+  if (session.user.credentialVersion !== credentialVersion(current.passwordHash)) return null;
+  const { passwordHash, ...publicUser } = current;
+  void passwordHash;
+  return publicUser;
+}
+
+export async function getCurrentUser() {
+  const current = await getAuthenticatedUser();
+  if (!current) return null;
   const previewId = (await cookies()).get("i3_preview_user")?.value;
-  if (previewId && isAgencyRole(session.user.role)) {
-    const previewUser = await db.query.users.findFirst({ where: eq(users.id, previewId) });
-    if (previewUser && previewUser.status === "active") return { ...session.user, ...previewUser, clientAccountId: previewUser.clientAccountId };
+  if (previewId && current.role === "admin") {
+    if ((await headers()).has("next-action")) throw new Error("Exit preview before making changes.");
+    const previewUser = await db.query.users.findFirst({ where: eq(users.id, previewId), columns: userColumns });
+    if (previewUser && previewUser.status === "active") return previewUser;
   }
-  return session.user;
+  return current;
 }
 
 export async function isPreviewing() {
@@ -42,6 +57,12 @@ export async function requireAdmin() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== "admin") redirect("/agency");
+  return user;
+}
+
+export async function requireManager() {
+  const user = await requireAgencyUser();
+  if (user.role !== "admin" && user.role !== "account_manager") throw new Error("Manager access required.");
   return user;
 }
 

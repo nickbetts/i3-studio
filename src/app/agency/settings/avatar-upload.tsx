@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { updateUserAvatar, type AvatarState } from "./actions";
+import { prepareUpload } from "@/lib/upload-client";
 
 function initials(value: string) {
   const base = value.trim();
@@ -14,7 +15,10 @@ function initials(value: string) {
 }
 
 export function AvatarUpload({ userId, name, image, color }: { userId: string; name: string; image?: string | null; color: string }) {
-  const [state, formAction] = useActionState<AvatarState, FormData>(updateUserAvatar, {});
+  const [state, formAction] = useActionState<AvatarState, FormData>(async (previous, form) => {
+    try { return await updateUserAvatar(previous, await prepareUpload(form, "avatar")); }
+    catch (error) { return { error: error instanceof Error ? error.message : "Upload failed." }; }
+  }, {});
   const inputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 

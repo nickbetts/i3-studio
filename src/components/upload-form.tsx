@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { prepareUpload } from "@/lib/upload-client";
 
 type UploadState = { error?: string; success?: string };
 type Client = { id: string; name: string };
@@ -24,7 +25,15 @@ export function UploadForm({
   kind?: "document" | "design" | "reference";
   submitLabel?: string;
 }) {
-  const [state, formAction, pending] = useActionState<UploadState, FormData>(action, {});
+  const [progress, setProgress] = useState(0);
+  const [state, formAction, pending] = useActionState<UploadState, FormData>(async (previous, form) => {
+    try {
+      const prepared = await prepareUpload(form, kind, setProgress);
+      return await action(previous, prepared);
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : "Upload failed. Please retry." };
+    }
+  }, {});
   const formRef = useRef<HTMLFormElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
 
@@ -76,7 +85,7 @@ export function UploadForm({
       </div>
       {state.error ? <p className="text-sm text-destructive md:col-span-2">{state.error}</p> : null}
       <div className="md:col-span-2">
-        <Button type="submit" disabled={pending}>{pending ? "Uploading…" : submitLabel ?? "Upload"}</Button>
+        <Button type="submit" disabled={pending}>{pending ? `Uploading ${Math.round(progress)}%` : submitLabel ?? "Upload"}</Button>
       </div>
     </form>
   );

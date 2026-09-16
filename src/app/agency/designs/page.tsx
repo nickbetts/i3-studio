@@ -20,7 +20,7 @@ export default async function AgencyDesignsPage({ searchParams }: { searchParams
     db.query.designAssets.findMany({
       orderBy: desc(designAssets.createdAt),
       with: {
-        annotations: { with: { comments: { with: { author: true } } } },
+        annotations: { with: { comments: { with: { author: { columns: { id: true, name: true, email: true, role: true } } } } } },
         versions: { orderBy: (version, { desc: descOrder }) => [descOrder(version.version)] },
       },
     }),

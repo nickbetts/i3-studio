@@ -1,12 +1,12 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { put } from "@vercel/blob";
 import { db } from "@/db";
 import { annotationComments, annotations, designAssets, designVersions } from "@/db/schema";
 import { getCurrentUser, isAgencyRole } from "@/lib/auth-helpers";
 import { auditLog } from "@/lib/audit";
+import { verifiedUpload } from "@/lib/upload-server";
 
 // Both agency staff and the owning client can pin, reply and resolve — access is
 // checked per design asset rather than gated to a single role.
@@ -23,12 +23,18 @@ function revalidateBoth() {
   revalidatePath("/portal/approvals");
 }
 
-export async function createAnnotation(designAssetId: string, x: number, y: number, body: string): Promise<void> {
+async function requireLatest(designId: string, version: number) {
+  const latest = await db.query.designVersions.findFirst({ where: eq(designVersions.designAssetId, designId), orderBy: desc(designVersions.version) });
+  if (version !== (latest?.version ?? 1)) throw new Error("This revision is read-only. Reload the latest version.");
+}
+
+export async function createAnnotation(designAssetId: string, x: number, y: number, body: string, version: number): Promise<void> {
   const design = await db.query.designAssets.findFirst({ where: eq(designAssets.id, designAssetId) });
   if (!design) return;
   const user = await assertAccess(design.clientAccountId);
-  if (!user || x < 0 || x > 1 || y < 0 || y > 1 || !body.trim()) return;
-  const [annotation] = await db.insert(annotations).values({ designAssetId, x, y, createdByUserId: user.id }).returning({ id: annotations.id });
+  if (!user || !Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < 0 || y > 1 || !body.trim() || body.length > 10000) throw new Error("Invalid annotation.");
+  await requireLatest(designAssetId, version);
+  const [annotation] = await db.insert(annotations).values({ designAssetId, version, x, y, createdByUserId: user.id }).returning({ id: annotations.id });
   await db.insert(annotationComments).values({ annotationId: annotation.id, authorUserId: user.id, body: body.trim() });
   await auditLog({ actorUserId: user.id, action: "design.annotation_created", entityType: "annotation", entityId: annotation.id, clientAccountId: design.clientAccountId });
   revalidateBoth();
@@ -39,6 +45,7 @@ export async function addAnnotationComment(annotationId: string, body: string): 
   if (!annotation || !body.trim()) return;
   const user = await assertAccess(annotation.designAsset.clientAccountId);
   if (!user) return;
+  await requireLatest(annotation.designAssetId, annotation.version);
   await db.insert(annotationComments).values({ annotationId, authorUserId: user.id, body: body.trim() });
   await auditLog({ actorUserId: user.id, action: "design.comment_created", entityType: "annotation", entityId: annotationId, clientAccountId: annotation.designAsset.clientAccountId });
   revalidateBoth();
@@ -50,6 +57,7 @@ export async function resolveAnnotation(annotationId: string): Promise<void> {
   const user = await assertAccess(annotation.designAsset.clientAccountId);
   if (!user) return;
   const next = !annotation.resolved;
+  await requireLatest(annotation.designAssetId, annotation.version);
   await db.update(annotations).set({ resolved: next }).where(eq(annotations.id, annotationId));
   await auditLog({ actorUserId: user.id, action: next ? "design.annotation_resolved" : "design.annotation_reopened", entityType: "annotation", entityId: annotationId, clientAccountId: annotation.designAsset.clientAccountId });
   revalidateBoth();
@@ -66,7 +74,6 @@ export async function deleteAnnotationComment(commentId: string): Promise<void> 
   revalidateBoth();
 }
 
-const MAX_BYTES = 25 * 1024 * 1024;
 export type UploadVersionState = { error?: string; success?: string };
 
 // Uploading a new version re-opens the design for review and keeps every prior image accessible.
@@ -74,23 +81,21 @@ export async function uploadDesignVersion(_prev: UploadVersionState, formData: F
   const actor = await getCurrentUser();
   if (!actor || !isAgencyRole(actor.role)) return { error: "Only the agency team can upload new versions." };
   const designAssetId = String(formData.get("designAssetId") ?? "");
-  const file = formData.get("file");
   const design = await db.query.designAssets.findFirst({ where: eq(designAssets.id, designAssetId), with: { versions: true } });
   if (!design) return { error: "Design not found." };
-  if (!(file instanceof File) || file.size === 0) return { error: "Choose an image to upload." };
-  if (!file.type.startsWith("image/")) return { error: "Only image files are supported." };
-  if (file.size > MAX_BYTES) return { error: "That image is over the 25MB limit." };
 
   try {
     const version = design.versions.length ? Math.max(...design.versions.map((v) => v.version)) + 1 : 2;
-    const blob = await put(`clients/${design.clientAccountId}/designs/${designAssetId}/v${version}-${Date.now()}-${file.name}`, file, { access: "public", addRandomSuffix: false });
-    if (design.versions.length === 0) {
-      // Backfill version 1 from the design's original image so history starts complete.
-      await db.insert(designVersions).values({ designAssetId, version: 1, imageUrl: design.imageUrl, status: design.status, createdAt: design.createdAt });
-    }
-    await db.insert(designVersions).values({ designAssetId, version, imageUrl: blob.url, status: "pending" });
-    await db.update(designAssets).set({ imageUrl: blob.url, status: "pending" }).where(eq(designAssets.id, designAssetId));
-    await auditLog({ actorUserId: actor.id, action: "design.version_uploaded", entityType: "design_asset", entityId: designAssetId, clientAccountId: design.clientAccountId, metadata: { version } });
+    const blob = await verifiedUpload(formData, actor.id, "version", designAssetId);
+    const result = await db.execute(sql`
+      WITH moved AS (UPDATE design_asset SET image_url = ${blob.url}, status = 'pending' WHERE id = ${designAssetId} AND image_url = ${design.imageUrl} AND EXISTS (SELECT 1 FROM app_upload WHERE pathname = ${blob.pathname} AND consumed_at IS NULL) RETURNING id),
+      original AS (INSERT INTO design_version (id, design_asset_id, version, image_url, status, created_at) SELECT ${crypto.randomUUID()}, id, 1, ${design.imageUrl}, ${design.status}::approval_status, ${design.createdAt.toISOString()}::timestamp FROM moved WHERE ${design.versions.length === 0}),
+      saved AS (INSERT INTO design_version (id, design_asset_id, version, image_url) SELECT ${crypto.randomUUID()}, id, ${version}, ${blob.url} FROM moved),
+      claimed AS (UPDATE app_upload SET consumed_at = now() WHERE pathname = ${blob.pathname} AND EXISTS (SELECT 1 FROM moved)),
+      audit AS (INSERT INTO audit_log (id, actor_user_id, action, entity_type, entity_id, client_account_id, metadata) SELECT ${crypto.randomUUID()}, ${actor.id}, 'design.version_uploaded', 'design_asset', id, ${design.clientAccountId}, ${JSON.stringify({ version })}::jsonb FROM moved)
+      SELECT id FROM moved
+    `);
+    if (!result.rows.length) return { error: "A new revision was uploaded meanwhile. Reload and retry." };
     revalidateBoth();
     return { success: `Version ${version} uploaded.` };
   } catch (error) {

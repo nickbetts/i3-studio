@@ -5,6 +5,7 @@ export type AppUserStatus = "invited" | "active" | "disabled";
 
 declare module "next-auth" {
   interface User {
+    credentialVersion?: string;
     role: AppRole;
     clientAccountId?: string | null;
     status: AppUserStatus;
@@ -12,6 +13,7 @@ declare module "next-auth" {
 
   interface Session {
     user: {
+      credentialVersion?: string;
       id: string;
       role: AppRole;
       clientAccountId: string | null;

@@ -8,7 +8,7 @@ export async function sendMail(input: SendMailInput) {
   const base = process.env.MAILGUN_API_BASE || "https://api.mailgun.net";
   const body = new URLSearchParams({ from, to: input.to, subject: input.subject, text: input.text });
   if (input.replyTo) body.set("h:Reply-To", input.replyTo);
-  const response = await fetch(`${base}/v3/${domain}/messages`, { method: "POST", headers: { Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString("base64")}`, "Content-Type": "application/x-www-form-urlencoded" }, body });
+  const response = await fetch(`${base}/v3/${domain}/messages`, { method: "POST", signal: AbortSignal.timeout(10000), headers: { Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString("base64")}`, "Content-Type": "application/x-www-form-urlencoded" }, body });
   if (!response.ok) throw new Error(`Mailgun request failed: ${response.status}`);
   return response.json() as Promise<{ id: string }>;
 }

@@ -1,37 +1,36 @@
 "use server";
 
-import { put } from "@vercel/blob";
+import { sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { designAssets } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
-import { auditLog } from "@/lib/audit";
+import { verifiedUpload } from "@/lib/upload-server";
 
 export type UploadState = { error?: string; success?: string };
-
-const MAX_BYTES = 25 * 1024 * 1024;
 
 export async function uploadDesign(_prev: UploadState, formData: FormData): Promise<UploadState> {
   const actor = await requireAgencyUser();
   const clientAccountId = String(formData.get("clientAccountId") ?? "");
   const title = String(formData.get("title") ?? "").trim();
-  const file = formData.get("file");
   if (!clientAccountId) return { error: "Choose a client." };
   if (title.length < 2) return { error: "Enter a title (at least 2 characters)." };
-  if (!(file instanceof File) || file.size === 0) return { error: "Choose an image to upload." };
-  if (!file.type.startsWith("image/")) return { error: "Only image files are supported." };
-  if (file.size > MAX_BYTES) return { error: "That image is over the 25MB limit." };
 
   try {
-    const blob = await put(`clients/${clientAccountId}/designs/${Date.now()}-${file.name}`, file, { access: "public", addRandomSuffix: false });
-    const [design] = await db.insert(designAssets).values({ clientAccountId, createdByUserId: actor.id, title, imageUrl: blob.url, width: null, height: null, status: "pending" }).returning({ id: designAssets.id });
-    await auditLog({ actorUserId: actor.id, action: "design.uploaded", entityType: "design_asset", entityId: design.id, clientAccountId });
+    const blob = await verifiedUpload(formData, actor.id, "design", clientAccountId);
+    const result = await db.execute(sql`
+      WITH claimed AS (UPDATE app_upload SET consumed_at = now() WHERE pathname = ${blob.pathname} AND consumed_at IS NULL RETURNING pathname),
+      saved AS (INSERT INTO design_asset (id, client_account_id, created_by_user_id, title, image_url) SELECT ${crypto.randomUUID()}, ${clientAccountId}, ${actor.id}, ${title}, ${blob.url} FROM claimed RETURNING id),
+      version AS (INSERT INTO design_version (id, design_asset_id, version, image_url) SELECT ${crypto.randomUUID()}, id, 1, ${blob.url} FROM saved),
+      audit AS (INSERT INTO audit_log (id, actor_user_id, action, entity_type, entity_id, client_account_id) SELECT ${crypto.randomUUID()}, ${actor.id}, 'design.uploaded', 'design_asset', id, ${clientAccountId} FROM saved)
+      SELECT id FROM saved
+    `);
+    if (!result.rows.length) return { error: "Upload already saved." };
     revalidatePath("/agency/designs");
-    revalidatePath("/portal/designs");
+    revalidatePath("/portal/approvals");
     revalidatePath("/portal");
     return { success: `Uploaded “${title}”.` };
-  } catch (error) {
-    console.error("uploadDesign failed", error);
+  } catch {
+    console.error(JSON.stringify({ event: "design_upload_failed" }));
     return { error: "Upload failed. Please try again." };
   }
 }
