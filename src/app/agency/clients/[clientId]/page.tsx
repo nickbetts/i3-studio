@@ -15,7 +15,7 @@ import { uploadReference } from "@/app/portal/(app)/files/actions";
 import { addAccountManager, removeAccountManager, resetClientOnboarding, updateClientDetails } from "../actions";
 
 export default async function AgencyClientDashboardPage({ params }: { params: Promise<{ clientId: string }> }) {
-  await requireAgencyUser();
+  const actor = await requireAgencyUser();
   const { clientId } = await params;
   const client = await db.query.clientAccounts.findFirst({ where: eq(clientAccounts.id, clientId) });
   if (!client) return <Card><CardContent className="pt-6">Client not found.</CardContent></Card>;
@@ -38,7 +38,16 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
         title={client.name}
         description={`Internal client dashboard · ${client.status.charAt(0).toUpperCase()}${client.status.slice(1)}`}
         breadcrumbs={[{ label: "Clients", href: "/agency/clients" }, { label: client.name }]}
-        actions={<ConfirmButton action={resetClientOnboarding} hidden={{ clientAccountId: client.id }} label="Reset onboarding" title="Reset onboarding?" description="This clears the client's submitted answers and sends them back through the onboarding wizard." confirmLabel="Reset" variant="outline" />}
+        actions={
+          <div className="flex gap-2">
+            {actor.role === "admin" ? (
+              <Button asChild variant="outline">
+                <a href={`/api/reports/client-export/${client.id}`}>Export data (DSAR)</a>
+              </Button>
+            ) : null}
+            <ConfirmButton action={resetClientOnboarding} hidden={{ clientAccountId: client.id }} label="Reset onboarding" title="Reset onboarding?" description="This clears the client's submitted answers and sends them back through the onboarding wizard." confirmLabel="Reset" variant="outline" />
+          </div>
+        }
       />
 
       <div className="grid gap-6 lg:grid-cols-2">

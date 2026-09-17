@@ -205,6 +205,8 @@ export const onboardingSubmissions = pgTable("onboarding_submission", {
   data: jsonb("data").notNull().default({}),
   currentStep: integer("current_step").notNull().default(0),
   completedAt: timestamp("completed_at", { mode: "date" }),
+  termsVersion: text("terms_version"),
+  termsAcceptedAt: timestamp("terms_accepted_at", { mode: "date" }),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });
 

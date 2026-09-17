@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -211,7 +212,14 @@ function Field({
     return (
       <div className="flex items-center gap-2">
         <Checkbox id={id} checked={value === true} onCheckedChange={(c) => onChange(field.key, c === true)} />
-        {label}
+        {field.key === "acceptedTerms" ? (
+          <Label htmlFor={id}>
+            {field.label} I agree to the{" "}
+            <Link href="/terms" target="_blank" className="underline underline-offset-4">Terms of Use</Link> and{" "}
+            <Link href="/privacy" target="_blank" className="underline underline-offset-4">Privacy Policy</Link>.
+            {field.required ? <span className="text-red-600"> *</span> : null}
+          </Label>
+        ) : label}
       </div>
     );
   }

@@ -3,13 +3,15 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { auditLogs } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
 function csvEscape(value: string) {
   return `"${value.replace(/"/g, '""')}"`;
 }
 
 export async function GET(request: Request) {
-  await requireAgencyUser();
+  const actor = await requireAgencyUser();
+  if (!await consumeRateLimit(`audit-export:${actor.id}`, 20, 3600)) return new NextResponse(null, { status: 429 });
   const { searchParams } = new URL(request.url);
   const from = searchParams.get("from");
   const to = searchParams.get("to");

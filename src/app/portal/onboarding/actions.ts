@@ -7,6 +7,7 @@ import { clientAccounts, onboardingSubmissions } from "@/db/schema";
 import { requireClientUser } from "@/lib/auth-helpers";
 import { auditLog } from "@/lib/audit";
 import { getFlowSteps } from "@/lib/onboarding-flow-server";
+import { CURRENT_TERMS_VERSION } from "@/lib/onboarding-flow";
 
 export type OnboardingActionState = { error?: string; ok?: boolean };
 
@@ -60,6 +61,10 @@ export async function completeOnboarding(flowId: string, data: Record<string, un
   if (missing.length > 0) return { error: "Please complete all required fields before submitting." };
 
   const now = new Date();
+  // Bind the accepted terms checkbox to the policy version shown at submission time, for an auditable consent trail.
+  const acceptedTerms = sanitized.acceptedTerms === true;
+  const termsVersion = acceptedTerms ? CURRENT_TERMS_VERSION : null;
+  const termsAcceptedAt = acceptedTerms ? now : null;
 
   await db
     .insert(onboardingSubmissions)
@@ -69,10 +74,12 @@ export async function completeOnboarding(flowId: string, data: Record<string, un
       data: sanitized,
       currentStep: Math.max(steps.length - 1, 0),
       completedAt: now,
+      termsVersion,
+      termsAcceptedAt,
     })
     .onConflictDoUpdate({
       target: onboardingSubmissions.clientAccountId,
-      set: { data: sanitized, onboardingFlowId: flowId || null, completedAt: now, updatedAt: now },
+      set: { data: sanitized, onboardingFlowId: flowId || null, completedAt: now, updatedAt: now, termsVersion, termsAcceptedAt },
     });
 
   await db

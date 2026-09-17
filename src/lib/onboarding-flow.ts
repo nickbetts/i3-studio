@@ -1,3 +1,6 @@
+// Bump when Terms of Use / Privacy Policy content materially changes so past acceptances stay attributable to the version shown.
+export const CURRENT_TERMS_VERSION = "2026-09-17";
+
 export type OnboardingFlowFieldType = "text" | "url" | "email" | "tel" | "textarea" | "select" | "checkbox";
 
 export type OnboardingFlowField = {

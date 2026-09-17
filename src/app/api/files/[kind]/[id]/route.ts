@@ -4,11 +4,13 @@ import { db } from "@/db";
 import { documents, referenceFiles } from "@/db/schema";
 import { getCurrentUser, isAgencyRole } from "@/lib/auth-helpers";
 import { auditLog } from "@/lib/audit";
+import { consumeRateLimit } from "@/lib/rate-limit";
 import { safeFileName } from "@/lib/upload-policy";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ kind: string; id: string }> }) {
   const actor = await getCurrentUser();
   if (!actor) return new Response(null, { status: 401 });
+  if (!await consumeRateLimit(`file-download:${actor.id}`, 120, 3600)) return new Response(null, { status: 429 });
   const { kind, id } = await params;
   const file = kind === "document" ? await db.query.documents.findFirst({ where: eq(documents.id, id) }) : kind === "reference" ? await db.query.referenceFiles.findFirst({ where: eq(referenceFiles.id, id) }) : null;
   if (!file || (!isAgencyRole(actor.role) && file.clientAccountId !== actor.clientAccountId)) return new Response(null, { status: 404 });

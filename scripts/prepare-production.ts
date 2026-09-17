@@ -70,6 +70,8 @@ await database.transaction([
     database.query("ALTER TABLE ticket_message ADD COLUMN IF NOT EXISTS attachment_name text"),
     database.query("ALTER TABLE ticket_message ADD COLUMN IF NOT EXISTS attachment_content_type text"),
     database.query("ALTER TABLE ticket_message ADD COLUMN IF NOT EXISTS attachment_size integer"),
+  database.query("ALTER TABLE onboarding_submission ADD COLUMN IF NOT EXISTS terms_version text"),
+  database.query("ALTER TABLE onboarding_submission ADD COLUMN IF NOT EXISTS terms_accepted_at timestamptz"),
 ]);
 await seedDefaults();
 console.log("Additive authentication and webhook safeguards ready. Existing data was not reset.");
