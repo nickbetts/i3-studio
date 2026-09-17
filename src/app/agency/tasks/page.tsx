@@ -1,6 +1,5 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { ListTodo } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,9 +12,8 @@ import { db } from "@/db";
 import { clientAccounts, projects, tasks, users } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
 import { createTask } from "./actions";
-import { TaskAssignee } from "./task-assignee";
 import { TaskFilterSelect } from "./task-filter-select";
-import { TaskStatus } from "./task-status";
+import { TaskList, type TaskRow } from "./task-list";
 
 const STATUS_OPTIONS = [
   { value: "open_items", label: "Open (not done)" },
@@ -32,22 +30,30 @@ const PRIORITY_OPTIONS = [
   { value: "medium", label: "Medium" },
   { value: "low", label: "Low" },
 ];
+const SORT_OPTIONS = [
+  { value: "due", label: "Sort: due date" },
+  { value: "priority", label: "Sort: priority" },
+  { value: "status", label: "Sort: status" },
+];
+const PRIORITY_RANK: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
+const STATUS_RANK: Record<string, number> = { open: 0, in_progress: 1, blocked: 2, done: 3 };
 
-function dueBadge(dueDate: Date | null, status: string) {
+function dueLabel(dueDate: Date | null, status: string): TaskRow["dueLabel"] {
   if (!dueDate || status === "done") return null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const due = new Date(dueDate);
   due.setHours(0, 0, 0, 0);
   const diffDays = Math.round((due.getTime() - today.getTime()) / 86_400_000);
-  if (diffDays < 0) return <Badge variant="destructive">Overdue</Badge>;
-  if (diffDays <= 1) return <Badge className="bg-amber-500 text-white dark:bg-amber-600">Due soon</Badge>;
+  if (diffDays < 0) return "overdue";
+  if (diffDays <= 1) return "soon";
   return null;
 }
 
-export default async function AgencyTasksPage({ searchParams }: { searchParams: Promise<{ assignee?: string; clientId?: string; projectId?: string; status?: string; priority?: string }> }) {
+export default async function AgencyTasksPage({ searchParams }: { searchParams: Promise<{ assignee?: string; clientId?: string; projectId?: string; status?: string; priority?: string; sort?: string }> }) {
   const user = await requireAgencyUser();
-  const { assignee = "me", clientId = "", projectId = "", status = "open_items", priority = "all" } = await searchParams;
+  const canManage = user.role === "admin" || user.role === "account_manager";
+  const { assignee = "me", clientId = "", projectId = "", status = "open_items", priority = "all", sort = "due" } = await searchParams;
 
   const [clients, team, allProjects] = await Promise.all([
     db.query.clientAccounts.findMany({ orderBy: asc(clientAccounts.name) }),
@@ -66,60 +72,68 @@ export default async function AgencyTasksPage({ searchParams }: { searchParams: 
   if (priority !== "all") conditions.push(eq(tasks.priority, priority as "low" | "medium" | "high" | "urgent"));
 
   const taskList = await db.query.tasks.findMany({ where: conditions.length ? and(...conditions) : undefined, orderBy: asc(tasks.dueDate) });
+  const sorted = [...taskList].sort((a, b) => {
+    if (sort === "priority") return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
+    if (sort === "status") return STATUS_RANK[a.status] - STATUS_RANK[b.status];
+    if (!a.dueDate) return 1;
+    if (!b.dueDate) return -1;
+    return a.dueDate.getTime() - b.dueDate.getTime();
+  });
+  const rows: TaskRow[] = sorted.map((task) => ({
+    id: task.id,
+    title: task.title,
+    meta: `${clientName(task.clientAccountId)}${projectName(task.projectId) ? ` · ${projectName(task.projectId)}` : ""} · ${task.priority}${task.dueDate ? ` · due ${task.dueDate.toLocaleDateString()}` : ""}`,
+    priority: task.priority,
+    status: task.status,
+    assignedToUserId: task.assignedToUserId,
+    dueLabel: dueLabel(task.dueDate, task.status),
+  }));
 
   return (
     <div className="space-y-6">
       <PageHeader title="Tasks" description="Everything the team needs to do, in one place." />
 
-      <Card>
-        <CardHeader><CardTitle className="text-base">Create a task</CardTitle><CardDescription>Tasks appear here and in the client portal as outstanding items.</CardDescription></CardHeader>
-        <CardContent>
-          <form action={createTask} className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2"><Label htmlFor="task-client">Client</Label><Select name="clientAccountId" required><SelectTrigger id="task-client"><SelectValue placeholder="Choose a client" /></SelectTrigger><SelectContent>{clients.map((client) => <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-2"><Label htmlFor="task-project">Project (optional)</Label><Select name="projectId"><SelectTrigger id="task-project"><SelectValue placeholder="No project" /></SelectTrigger><SelectContent>{allProjects.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-2"><Label htmlFor="task-title">Task title</Label><Input id="task-title" name="title" required /></div>
-            <div className="space-y-2"><Label htmlFor="task-assignee">Assignee</Label><Select name="assignedToUserId"><SelectTrigger id="task-assignee"><SelectValue placeholder="Unassigned" /></SelectTrigger><SelectContent>{team.map((member) => <SelectItem key={member.id} value={member.id}>{member.name || member.email}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-2 md:col-span-2"><Label htmlFor="task-description">Description</Label><Textarea id="task-description" name="description" /></div>
-            <div className="space-y-2"><Label htmlFor="task-priority">Priority</Label><Select name="priority" defaultValue="medium"><SelectTrigger id="task-priority"><SelectValue /></SelectTrigger><SelectContent>{["low", "medium", "high", "urgent"].map((p) => <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-2"><Label htmlFor="task-due">Due date</Label><Input id="task-due" name="dueDate" type="date" /></div>
-            <div><Button type="submit">Create task</Button></div>
-          </form>
-        </CardContent>
-      </Card>
+      {canManage ? (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Create a task</CardTitle><CardDescription>Tasks appear here and in the client portal as outstanding items.</CardDescription></CardHeader>
+          <CardContent>
+            <form action={createTask} className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2"><Label htmlFor="task-client">Client</Label><Select name="clientAccountId" required><SelectTrigger id="task-client"><SelectValue placeholder="Choose a client" /></SelectTrigger><SelectContent>{clients.map((client) => <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2"><Label htmlFor="task-project">Project (optional)</Label><Select name="projectId"><SelectTrigger id="task-project"><SelectValue placeholder="No project" /></SelectTrigger><SelectContent>{allProjects.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2"><Label htmlFor="task-title">Task title</Label><Input id="task-title" name="title" required /></div>
+              <div className="space-y-2"><Label htmlFor="task-assignee">Assignee</Label><Select name="assignedToUserId"><SelectTrigger id="task-assignee"><SelectValue placeholder="Unassigned" /></SelectTrigger><SelectContent>{team.map((member) => <SelectItem key={member.id} value={member.id}>{member.name || member.email}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2 md:col-span-2"><Label htmlFor="task-description">Description</Label><Textarea id="task-description" name="description" /></div>
+              <div className="space-y-2"><Label htmlFor="task-priority">Priority</Label><Select name="priority" defaultValue="medium"><SelectTrigger id="task-priority"><SelectValue /></SelectTrigger><SelectContent>{["low", "medium", "high", "urgent"].map((p) => <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2"><Label htmlFor="task-due">Due date</Label><Input id="task-due" name="dueDate" type="date" /></div>
+              <div><Button type="submit">Create task</Button></div>
+            </form>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader className="gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div><CardTitle className="text-base">Task queue</CardTitle><CardDescription>{taskList.length} matching task{taskList.length === 1 ? "" : "s"}.</CardDescription></div>
+            <div><CardTitle className="text-base">Task queue</CardTitle><CardDescription>{rows.length} matching task{rows.length === 1 ? "" : "s"}.</CardDescription></div>
             <div className="flex flex-wrap gap-2">
               <TaskFilterSelect paramKey="assignee" placeholder="My tasks" options={[{ value: "me", label: "My tasks" }, { value: "all", label: "All tasks" }]} />
               <TaskFilterSelect paramKey="clientId" placeholder="All clients" options={[{ value: "", label: "All clients" }, ...clients.map((client) => ({ value: client.id, label: client.name }))]} />
               <TaskFilterSelect paramKey="projectId" placeholder="All projects" options={[{ value: "", label: "All projects" }, ...allProjects.map((project) => ({ value: project.id, label: project.name }))]} />
               <TaskFilterSelect paramKey="status" placeholder="Open (not done)" options={STATUS_OPTIONS} />
               <TaskFilterSelect paramKey="priority" placeholder="All priorities" options={PRIORITY_OPTIONS} />
+              <TaskFilterSelect paramKey="sort" placeholder="Sort: due date" options={SORT_OPTIONS} />
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {taskList.length === 0 ? (
+        <CardContent>
+          {rows.length === 0 ? (
             <EmptyState icon={ListTodo} title="No matching tasks" description="Try a different filter, or create a task above." />
-          ) : taskList.map((task) => (
-            <div key={task.id} data-testid={`task-${task.id}`} className="flex flex-wrap items-center justify-between gap-3 border-b py-3 last:border-0">
-              <div>
-                <p className="font-medium">{task.title}</p>
-                <p className="text-xs capitalize text-muted-foreground">
-                  {clientName(task.clientAccountId)}{projectName(task.projectId) ? ` · ${projectName(task.projectId)}` : ""} · {task.priority}{task.dueDate ? ` · due ${task.dueDate.toLocaleDateString()}` : ""}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {dueBadge(task.dueDate, task.status)}
-                <TaskAssignee taskId={task.id} assignedToUserId={task.assignedToUserId} team={team} />
-                <TaskStatus taskId={task.id} value={task.status} />
-              </div>
-            </div>
-          ))}
+          ) : (
+            <TaskList rows={rows} team={team} currentUserId={user.id} canManage={canManage} />
+          )}
         </CardContent>
       </Card>
     </div>
   );
 }
+

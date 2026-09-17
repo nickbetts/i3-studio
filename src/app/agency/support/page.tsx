@@ -19,6 +19,7 @@ export default async function AgencySupportPage() {
     status: ticket.status,
     priority: ticket.priority,
     clientName: clients.find((client) => client.id === ticket.clientAccountId)?.name ?? "Unknown client",
+      clientAccountId: ticket.clientAccountId,
     assigneeName: team.find((member) => member.id === ticket.assignedToUserId)?.name ?? null,
     updatedAt: ticket.updatedAt,
     messages: ticket.messages,

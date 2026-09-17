@@ -9,10 +9,13 @@ import { EmptyState } from "@/components/empty-state";
 import { ConfirmButton } from "@/components/confirm-button";
 import { UploadForm } from "@/components/upload-form";
 import { SearchInput } from "@/components/search-input";
+import { Pagination } from "@/components/pagination";
 import { db } from "@/db";
 import { referenceFiles, users } from "@/db/schema";
 import { requireClientUser } from "@/lib/auth-helpers";
 import { deleteReference, uploadReference } from "./actions";
+
+const PAGE_SIZE = 15;
 
 function formatBytes(bytes: number | null) {
   if (!bytes) return "—";
@@ -34,9 +37,9 @@ function fileIcon(name: string, type: string | null) {
   return FileIcon;
 }
 
-export default async function PortalFilesPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+export default async function PortalFilesPage({ searchParams }: { searchParams: Promise<{ q?: string; page?: string }> }) {
   const user = await requireClientUser();
-  const { q } = await searchParams;
+  const { q, page } = await searchParams;
   const rows = await db
     .select({
       id: referenceFiles.id,
@@ -56,6 +59,9 @@ export default async function PortalFilesPage({ searchParams }: { searchParams: 
     .orderBy(desc(referenceFiles.createdAt));
   const query = (q ?? "").toLowerCase();
   const filteredRows = query ? rows.filter((row) => row.title.toLowerCase().includes(query) || row.fileName.toLowerCase().includes(query)) : rows;
+  const currentPage = Math.max(1, Number(page) || 1);
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const pageRows = filteredRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return (
     <div className="space-y-6">
@@ -79,7 +85,7 @@ export default async function PortalFilesPage({ searchParams }: { searchParams: 
             <EmptyState icon={FileText} title={query ? "No files match your search" : "No files yet"} description={query ? "Try a different search term." : "Upload a reference file above to share it with your team."} />
           ) : (
             <div className="divide-y divide-border/60">
-              {filteredRows.map((row) => {
+              {pageRows.map((row) => {
                 const Icon = fileIcon(row.fileName, row.contentType);
                 const mine = row.uploadedByUserId === user.id;
                 return (
@@ -103,6 +109,7 @@ export default async function PortalFilesPage({ searchParams }: { searchParams: 
               })}
             </div>
           )}
+          <Pagination page={currentPage} totalPages={totalPages} />
         </CardContent>
       </Card>
     </div>

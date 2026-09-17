@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { db } from "@/db";
-import { auditLogs, clientAccounts, tasks, tickets, users } from "@/db/schema";
+import { auditLogs, clientAccounts, projects, tasks, tickets, users } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
 
 export default async function AgencyDashboardPage() {
@@ -18,7 +18,7 @@ export default async function AgencyDashboardPage() {
   dueSoonCutoff.setDate(dueSoonCutoff.getDate() + 3);
   dueSoonCutoff.setHours(23, 59, 59, 999);
 
-  const [[clientCount], [openTasks], [openTickets], activity, tasksDueSoon] = await Promise.all([
+  const [[clientCount], [openTasks], [openTickets], activity, tasksDueSoon, activeProjects] = await Promise.all([
     db.select({ value: count() }).from(clientAccounts),
     db.select({ value: count() }).from(tasks).where(eq(tasks.status, "open")),
     db.select({ value: count() }).from(tickets).where(eq(tickets.status, "open")),
@@ -35,7 +35,15 @@ export default async function AgencyDashboardPage() {
       .where(and(inArray(tasks.status, ["open", "in_progress", "blocked"]), lte(tasks.dueDate, dueSoonCutoff)))
       .orderBy(tasks.dueDate)
       .limit(8),
+    db.query.projects.findMany({ where: eq(projects.status, "active"), with: { milestones: true }, orderBy: desc(projects.createdAt), limit: 8 }),
   ]);
+  const activeProjectClients = activeProjects.length ? await db.query.clientAccounts.findMany({ where: inArray(clientAccounts.id, activeProjects.map((project) => project.clientAccountId)), columns: { id: true, name: true } }) : [];
+  const clientNameById = new Map(activeProjectClients.map((client) => [client.id, client.name]));
+  const projectProgress = activeProjects.map((project) => {
+    const total = project.milestones.length;
+    const done = project.milestones.filter((milestone) => milestone.status === "done").length;
+    return { id: project.id, name: project.name, clientName: clientNameById.get(project.clientAccountId) ?? "Unknown client", total, done, percent: total ? Math.round((done / total) * 100) : 0 };
+  });
 
   const stats = [
     { label: "Clients", value: clientCount?.value ?? 0, description: "Total client accounts", href: "/agency/clients", icon: Users, tint: "text-chart-2 bg-chart-2/10" },
@@ -114,6 +122,37 @@ export default async function AgencyDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div><CardTitle className="text-base">Active project delivery</CardTitle><CardDescription>Milestone progress across active projects.</CardDescription></div>
+            <Link href="/agency/projects" className="text-xs underline-offset-4 hover:underline">View all projects</Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {projectProgress.length === 0 ? (
+            <EmptyState icon={FolderKanban} title="No active projects" description="Projects created from a template will show delivery progress here." />
+          ) : (
+            <div className="space-y-3">
+              {projectProgress.map((project) => (
+                <Link key={project.id} href={`/agency/projects/${project.id}`} className="block rounded-md border p-3 transition-colors hover:border-primary/40">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{project.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">{project.clientName}</p>
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground">{project.done}/{project.total} milestones</span>
+                  </div>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-primary" style={{ width: `${project.percent}%` }} />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

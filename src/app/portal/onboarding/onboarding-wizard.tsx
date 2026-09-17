@@ -23,13 +23,16 @@ type Props = {
 
 export function OnboardingWizard({ flowId, steps, initialData, initialStep }: Props) {
   const router = useRouter();
-  const [step, setStep] = useState(Math.min(initialStep, Math.max(steps.length - 1, 0)));
+  const reviewStepIndex = steps.length;
+  const [step, setStep] = useState(Math.min(initialStep, Math.max(reviewStepIndex, 0)));
   const [values, setValues] = useState<Record<string, unknown>>({ ...initialData });
   const [pending, startTransition] = useTransition();
 
+  const isReview = step === reviewStepIndex;
   const current = steps[step];
-  const isLast = step === steps.length - 1;
-  const progress = steps.length > 0 ? Math.round(((step + 1) / steps.length) * 100) : 0;
+  const isLastField = step === steps.length - 1;
+  const totalSteps = steps.length + 1;
+  const progress = totalSteps > 0 ? Math.round(((step + 1) / totalSteps) * 100) : 0;
 
   const missingRequired = useMemo(
     () => (current ? current.fields.filter((f) => f.required && !valueFilled(values[f.key], f.type)) : []),
@@ -41,17 +44,12 @@ export function OnboardingWizard({ flowId, steps, initialData, initialStep }: Pr
   }
 
   function next() {
-    if (missingRequired.length > 0) {
+    if (!isReview && missingRequired.length > 0) {
       toast.error("Please complete the required fields.");
       return;
     }
     startTransition(async () => {
-      const res = await saveOnboardingStep(flowId, values, Math.min(step + 1, Math.max(steps.length - 1, 0)));
-      if (res.error) {
-        toast.error(res.error);
-        return;
-      }
-      if (isLast) {
+      if (isReview) {
         const done = await completeOnboarding(flowId, values);
         if (done.error) {
           toast.error(done.error);
@@ -60,21 +58,24 @@ export function OnboardingWizard({ flowId, steps, initialData, initialStep }: Pr
         toast.success("Onboarding complete!");
         router.replace("/portal");
         router.refresh();
-      } else {
-        setStep((s) => s + 1);
+        return;
       }
+      const nextStep = Math.min(step + 1, reviewStepIndex);
+      await saveOnboardingStep(flowId, values, Math.min(nextStep, Math.max(steps.length - 1, 0)));
+      setStep(nextStep);
     });
   }
 
   function back() {
     if (step === 0) return;
     startTransition(async () => {
-      await saveOnboardingStep(flowId, values, step - 1);
-      setStep((s) => s - 1);
+      const prevStep = step - 1;
+      await saveOnboardingStep(flowId, values, Math.min(prevStep, Math.max(steps.length - 1, 0)));
+      setStep(prevStep);
     });
   }
 
-  if (!current) {
+  if (steps.length === 0) {
     return (
       <Card className="w-full max-w-2xl">
         <CardContent className="pt-6 text-sm text-muted-foreground">Onboarding isn&apos;t configured yet. Please contact your account manager.</CardContent>
@@ -87,29 +88,66 @@ export function OnboardingWizard({ flowId, steps, initialData, initialStep }: Pr
       <CardHeader className="space-y-3">
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <span>
-            Step {step + 1} of {steps.length}
+            {isReview ? "Review your answers" : `Step ${step + 1} of ${steps.length}`}
           </span>
           <span>{progress}%</span>
         </div>
         <Progress value={progress} />
-        <CardTitle>{current.title}</CardTitle>
-        <CardDescription>{current.description}</CardDescription>
+        {isReview ? (
+          <>
+            <CardTitle>Review your answers</CardTitle>
+            <CardDescription>Take a moment to check everything looks right before finishing.</CardDescription>
+          </>
+        ) : (
+          <>
+            <CardTitle>{current.title}</CardTitle>
+            <CardDescription>{current.description}</CardDescription>
+          </>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
-        {current.fields.map((field) => (
-          <Field key={field.key} field={field} value={values[field.key]} onChange={setField} />
-        ))}
+        {isReview ? (
+          <div className="space-y-5">
+            {steps.map((reviewStep) => (
+              <div key={reviewStep.title} className="space-y-2">
+                <p className="text-sm font-medium">{reviewStep.title}</p>
+                <div className="space-y-2 rounded-md border p-3">
+                  {reviewStep.fields.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No questions in this step.</p>
+                  ) : (
+                    reviewStep.fields.map((field) => (
+                      <div key={field.key} className="text-sm">
+                        <p className="text-xs text-muted-foreground">{field.label}</p>
+                        <p className="whitespace-pre-wrap">{formatReviewValue(values[field.key], field.type)}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          current.fields.map((field) => (
+            <Field key={field.key} field={field} value={values[field.key]} onChange={setField} />
+          ))
+        )}
       </CardContent>
       <CardFooter className="justify-between">
         <Button variant="outline" onClick={back} disabled={step === 0 || pending}>
           Back
         </Button>
         <Button onClick={next} disabled={pending}>
-          {pending ? "Saving…" : isLast ? "Finish" : "Continue"}
+          {pending ? "Saving…" : isReview ? "Finish" : isLastField ? "Review" : "Continue"}
         </Button>
       </CardFooter>
     </Card>
   );
+}
+
+function formatReviewValue(value: unknown, type: OnboardingFlowField["type"]) {
+  if (type === "checkbox") return value === true ? "Yes" : "No";
+  const text = String(value ?? "").trim();
+  return text.length > 0 ? text : "—";
 }
 
 function valueFilled(value: unknown, type: OnboardingFlowField["type"]) {

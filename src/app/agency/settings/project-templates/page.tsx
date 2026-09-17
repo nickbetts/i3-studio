@@ -12,7 +12,7 @@ import { db } from "@/db";
 import { clientTypes, projectTemplates } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth-helpers";
 import type { ProjectDeliverableTemplate, ProjectMilestoneTemplate } from "@/lib/project-templates";
-import { archiveProjectTemplate, createProjectTemplate } from "./actions";
+import { archiveProjectTemplate, createProjectTemplate, duplicateProjectTemplate } from "./actions";
 import { ProjectTemplateEditor } from "./project-template-editor";
 
 export default async function ProjectTemplatesPage() {
@@ -59,7 +59,10 @@ export default async function ProjectTemplatesPage() {
             <CardHeader>
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-base">{template.name}</CardTitle>
-                <ConfirmButton action={archiveProjectTemplate} hidden={{ templateId: template.id }} label="Archive" title="Archive this project template?" description="Existing projects keep their milestones/deliverables; the template is hidden from new projects." confirmLabel="Archive" variant="ghost" />
+                <div className="flex items-center gap-2">
+                  <form action={duplicateProjectTemplate}><input type="hidden" name="templateId" value={template.id} /><Button type="submit" variant="ghost" size="sm">Duplicate</Button></form>
+                  <ConfirmButton action={archiveProjectTemplate} hidden={{ templateId: template.id }} label="Archive" title="Archive this project template?" description="Existing projects keep their milestones/deliverables; the template is hidden from new projects." confirmLabel="Archive" variant="ghost" />
+                </div>
               </div>
             </CardHeader>
             <CardContent>

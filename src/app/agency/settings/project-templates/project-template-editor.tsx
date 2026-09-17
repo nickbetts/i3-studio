@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useUnsavedChangesWarning } from "@/lib/use-unsaved-changes-warning";
 import type { DeliverableType, ProjectDeliverableTemplate, ProjectMilestoneTemplate } from "@/lib/project-templates";
 import { saveProjectTemplate } from "./actions";
 
@@ -37,6 +38,8 @@ export function ProjectTemplateEditor({
   const [milestones, setMilestones] = useState<ProjectMilestoneTemplate[]>(initialMilestones ?? []);
   const [deliverables, setDeliverables] = useState<ProjectDeliverableTemplate[]>(initialDeliverables ?? []);
   const [pending, start] = useTransition();
+  const dirty = JSON.stringify({ name, clientTypeId, milestones, deliverables }) !== JSON.stringify({ name: initialName, clientTypeId: initialClientTypeId, milestones: initialMilestones ?? [], deliverables: initialDeliverables ?? [] });
+  useUnsavedChangesWarning(dirty);
 
   const updateMilestone = (index: number, patch: Partial<ProjectMilestoneTemplate>) =>
     setMilestones((prev) => prev.map((milestone, i) => (i === index ? { ...milestone, ...patch } : milestone)));
@@ -64,6 +67,7 @@ export function ProjectTemplateEditor({
 
   return (
     <div className="space-y-5">
+      {dirty ? <p className="text-xs text-amber-600 dark:text-amber-400">You have unsaved changes.</p> : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>Template name</Label>

@@ -12,7 +12,7 @@ import { db } from "@/db";
 import { clientTypes, onboardingFlows } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth-helpers";
 import type { OnboardingFlowStep } from "@/lib/onboarding-flow";
-import { archiveOnboardingFlow, createOnboardingFlow } from "./actions";
+import { archiveOnboardingFlow, createOnboardingFlow, duplicateOnboardingFlow } from "./actions";
 import { OnboardingFlowEditor } from "./onboarding-flow-editor";
 
 export default async function OnboardingFlowsPage() {
@@ -59,7 +59,10 @@ export default async function OnboardingFlowsPage() {
             <CardHeader>
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-base">{flow.name}</CardTitle>
-                <ConfirmButton action={archiveOnboardingFlow} hidden={{ flowId: flow.id }} label="Archive" title="Archive this onboarding flow?" description="Clients who already answered it keep their answers; the flow is hidden from new clients." confirmLabel="Archive" variant="ghost" />
+                <div className="flex items-center gap-2">
+                  <form action={duplicateOnboardingFlow}><input type="hidden" name="flowId" value={flow.id} /><Button type="submit" variant="ghost" size="sm">Duplicate</Button></form>
+                  <ConfirmButton action={archiveOnboardingFlow} hidden={{ flowId: flow.id }} label="Archive" title="Archive this onboarding flow?" description="Clients who already answered it keep their answers; the flow is hidden from new clients." confirmLabel="Archive" variant="ghost" />
+                </div>
               </div>
             </CardHeader>
             <CardContent>

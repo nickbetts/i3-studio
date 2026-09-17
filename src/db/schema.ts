@@ -307,6 +307,27 @@ export const tasks = pgTable(
   (t) => [index("task_client_idx").on(t.clientAccountId), index("task_project_idx").on(t.projectId)],
 );
 
+export const taskComments = pgTable(
+  "task_comment",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    taskId: text("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    authorUserId: text("author_user_id").references(() => users.id, { onDelete: "set null" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("task_comment_task_idx").on(t.taskId)],
+);
+
+export const taskCommentsRelations = relations(taskComments, ({ one }) => ({
+  task: one(tasks, { fields: [taskComments.taskId], references: [tasks.id] }),
+  author: one(users, { fields: [taskComments.authorUserId], references: [users.id] }),
+}));
+
 // ---------------------------------------------------------------------------
 // Documents + approvals
 // ---------------------------------------------------------------------------
@@ -594,6 +615,10 @@ export const ticketMessages = pgTable(
     direction: messageDirection("direction").notNull().default("outbound"),
     mailgunMessageId: text("mailgun_message_id"),
     createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+      attachmentUrl: text("attachment_url"),
+      attachmentName: text("attachment_name"),
+      attachmentContentType: text("attachment_content_type"),
+      attachmentSize: integer("attachment_size"),
   },
   (t) => [index("ticket_message_ticket_idx").on(t.ticketId)],
 );

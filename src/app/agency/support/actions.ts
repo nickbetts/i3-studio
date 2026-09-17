@@ -7,13 +7,20 @@ import { ticketMessages, tickets, users } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
 import { auditLog } from "@/lib/audit";
 import { queueMail } from "@/lib/mailgun";
+import { consumeUpload, verifiedUpload } from "@/lib/upload-server";
 
-export async function replyToTicket(ticketId: string, body: string): Promise<void> {
+export async function replyToTicket(ticketId: string, body: string, attachmentForm?: FormData): Promise<void> {
   const user = await requireAgencyUser();
   const ticket = await db.query.tickets.findFirst({ where: eq(tickets.id, ticketId), with: { clientAccount: true } });
   if (!ticket || !body.trim()) return;
   const client = await db.query.users.findFirst({ where: and(eq(users.clientAccountId, ticket.clientAccountId), eq(users.role, "client")) });
-  await db.insert(ticketMessages).values({ ticketId, authorUserId: user.id, authorEmail: user.email, body: body.trim(), channel: "portal", direction: "outbound" });
+  let attachment: { attachmentUrl?: string; attachmentName?: string; attachmentContentType?: string; attachmentSize?: number } = {};
+  if (attachmentForm?.get("uploadedUrl")) {
+    const blob = await verifiedUpload(attachmentForm, user.id, "ticket_attachment", ticket.clientAccountId);
+    await consumeUpload(blob.pathname);
+    attachment = { attachmentUrl: blob.url, attachmentName: blob.fileName, attachmentContentType: blob.contentType, attachmentSize: blob.size };
+  }
+  await db.insert(ticketMessages).values({ ticketId, authorUserId: user.id, authorEmail: user.email, body: body.trim(), channel: "portal", direction: "outbound", ...attachment });
   await db.update(tickets).set({ status: "pending", assignedToUserId: user.id, updatedAt: new Date() }).where(eq(tickets.id, ticketId));
   if (client?.email) {
     const domain = process.env.MAILGUN_DOMAIN || "localhost";

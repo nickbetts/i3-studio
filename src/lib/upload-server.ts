@@ -1,11 +1,11 @@
 import { head } from "@vercel/blob";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { validateUpload, type UploadKind } from "./upload-policy";
+import { isPrivateUploadKind, validateUpload, type UploadKind } from "./upload-policy";
 
 export async function verifiedUpload(form: FormData, actorId: string, kind: UploadKind, targetId: string) {
   const url = new URL(String(form.get("uploadedUrl") ?? ""));
-  const isPrivate = kind === "document" || kind === "reference";
+  const isPrivate = isPrivateUploadKind(kind);
   if (url.protocol !== "https:" || !new RegExp(`^[a-z0-9]+\\.${isPrivate ? "private" : "public"}\\.blob\\.vercel-storage\\.com$`).test(url.hostname)) throw new Error("Invalid storage URL.");
   const pathname = decodeURIComponent(url.pathname.slice(1));
   const result = await db.execute(sql`SELECT * FROM app_upload WHERE pathname = ${pathname} AND actor_id = ${actorId} AND kind = ${kind} AND expires_at > now() AND consumed_at IS NULL`);

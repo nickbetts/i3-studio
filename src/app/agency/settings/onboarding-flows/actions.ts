@@ -35,3 +35,15 @@ export async function archiveOnboardingFlow(formData: FormData): Promise<void> {
   await auditLog({ actorUserId: actor.id, action: "onboarding_flow.archived", entityType: "onboarding_flow", entityId: flowId });
   revalidatePath("/agency/settings/onboarding-flows");
 }
+
+export async function duplicateOnboardingFlow(formData: FormData): Promise<void> {
+  const actor = await requireAdmin();
+  const flowId = String(formData.get("flowId") ?? "");
+  const original = await db.query.onboardingFlows.findFirst({ where: eq(onboardingFlows.id, flowId) });
+  if (!original) return;
+  let name = `${original.name} (copy)`;
+  for (let attempt = 2; await db.query.onboardingFlows.findFirst({ where: eq(onboardingFlows.name, name) }); attempt++) name = `${original.name} (copy ${attempt})`;
+  const [row] = await db.insert(onboardingFlows).values({ name, clientTypeId: original.clientTypeId, steps: original.steps, createdByUserId: actor.id }).returning({ id: onboardingFlows.id });
+  await auditLog({ actorUserId: actor.id, action: "onboarding_flow.duplicated", entityType: "onboarding_flow", entityId: row.id, metadata: { sourceId: flowId } });
+  revalidatePath("/agency/settings/onboarding-flows");
+}

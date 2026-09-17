@@ -6,9 +6,9 @@ import { db } from "@/db";
 import { clientAccounts, designAssets } from "@/db/schema";
 import { getCurrentUser, isAgencyRole } from "@/lib/auth-helpers";
 import { consumeRateLimit } from "@/lib/rate-limit";
-import { IMAGE_TYPES, validateUpload } from "@/lib/upload-policy";
+import { IMAGE_TYPES, isPrivateUploadKind, validateUpload } from "@/lib/upload-policy";
 
-const payloadSchema = z.object({ kind: z.enum(["document", "reference", "design", "version", "avatar"]), clientAccountId: z.string().nullable(), designAssetId: z.string().nullable(), userId: z.string().nullable(), size: z.number(), contentType: z.string().max(200), fileName: z.string().min(1).max(255) });
+const payloadSchema = z.object({ kind: z.enum(["document", "reference", "design", "version", "avatar", "ticket_attachment"]), clientAccountId: z.string().nullable(), designAssetId: z.string().nullable(), userId: z.string().nullable(), size: z.number(), contentType: z.string().max(200), fileName: z.string().min(1).max(255) });
 
 export async function POST(request: Request) {
   try {
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     const payload = payloadSchema.parse(JSON.parse(body.payload.clientPayload ?? "{}"));
     validateUpload(payload.kind, payload.size, payload.contentType);
     if (!await consumeRateLimit(`upload:${actor.id}`, 60, 3600)) return Response.json({ error: "Upload limit reached. Try later." }, { status: 429 });
-    if (!isAgencyRole(actor.role) && (actor.role !== "client" || payload.kind !== "reference" || payload.clientAccountId !== actor.clientAccountId)) return Response.json({ error: "Access denied." }, { status: 403 });
+    if (!isAgencyRole(actor.role) && (actor.role !== "client" || !["reference", "ticket_attachment"].includes(payload.kind) || payload.clientAccountId !== actor.clientAccountId)) return Response.json({ error: "Access denied." }, { status: 403 });
     let clientId = payload.clientAccountId;
     if (payload.kind === "avatar") {
       if (actor.role !== "admin" && payload.userId !== actor.id) return Response.json({ error: "Access denied." }, { status: 403 });
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       if (!design) return Response.json({ error: "Design not found." }, { status: 404 });
       clientId = design.clientAccountId;
     } else if (!clientId || !await db.query.clientAccounts.findFirst({ where: eq(clientAccounts.id, clientId) })) return Response.json({ error: "Client not found." }, { status: 404 });
-    const isPrivate = payload.kind === "document" || payload.kind === "reference";
+    const isPrivate = isPrivateUploadKind(payload.kind);
     const token = isPrivate ? process.env.BLOB_PRIVATE_READ_WRITE_TOKEN : process.env.BLOB_READ_WRITE_TOKEN;
     if (!token) return Response.json({ error: "File storage is not configured. Contact your administrator." }, { status: 503 });
     const response = await handleUpload({ request, body, token,

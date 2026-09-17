@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
-import { Mail, MessageCircle, Search } from "lucide-react";
+import { Mail, MessageCircle, Paperclip, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -12,15 +12,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/empty-state";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
+import { prepareUpload } from "@/lib/upload-client";
 import { replyToTicket, updateTicketPriority, updateTicketStatus } from "./actions";
 
-type Message = { id: string; body: string; direction: string; channel: string; authorEmail: string | null; createdAt: string | Date };
+type Message = { id: string; body: string; direction: string; channel: string; authorEmail: string | null; createdAt: string | Date; attachmentUrl: string | null; attachmentName: string | null };
 type Ticket = {
   id: string;
   subject: string;
   status: "open" | "pending" | "resolved" | "closed";
   priority: "low" | "medium" | "high" | "urgent";
   clientName: string;
+  clientAccountId: string;
   assigneeName: string | null;
   updatedAt: string | Date;
   messages: Message[];
@@ -33,6 +35,7 @@ export function SupportInbox({ tickets }: { tickets: Ticket[] }) {
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reply, setReply] = useState("");
+  const [replyFile, setReplyFile] = useState<File | null>(null);
   const [pending, startTransition] = useTransition();
 
   const filtered = useMemo(() => {
@@ -45,8 +48,21 @@ export function SupportInbox({ tickets }: { tickets: Ticket[] }) {
   function send() {
     if (!selected || reply.trim().length === 0) return;
     startTransition(async () => {
-      await replyToTicket(selected.id, reply);
+      let attachmentForm: FormData | undefined;
+      if (replyFile) {
+        const form = new FormData();
+        form.set("file", replyFile);
+        form.set("clientAccountId", selected.clientAccountId);
+        try {
+          attachmentForm = await prepareUpload(form, "ticket_attachment");
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "Attachment upload failed.");
+          return;
+        }
+      }
+      await replyToTicket(selected.id, reply, attachmentForm);
       setReply("");
+      setReplyFile(null);
       toast.success("Reply sent");
     });
   }
@@ -125,6 +141,11 @@ export function SupportInbox({ tickets }: { tickets: Ticket[] }) {
               {selected.messages.map((message) => (
                 <div key={message.id} className={`max-w-[85%] rounded-lg p-3 text-sm ${message.direction === "inbound" ? "bg-muted" : "ml-auto bg-primary/10"}`}>
                   <p className="whitespace-pre-wrap">{message.body}</p>
+                    {message.attachmentUrl ? (
+                      <a href={message.attachmentUrl} target="_blank" rel="noreferrer" className="mt-1.5 flex items-center gap-1 text-xs font-medium underline underline-offset-2">
+                        <Paperclip className="size-3" />{message.attachmentName ?? "Attachment"}
+                      </a>
+                    ) : null}
                   <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
                     {message.channel === "email" ? <Mail className="size-3" /> : <MessageCircle className="size-3" />}
                     <span>{message.authorEmail || message.channel}</span>
@@ -136,7 +157,8 @@ export function SupportInbox({ tickets }: { tickets: Ticket[] }) {
             </div>
             <div className="space-y-2 border-t bg-muted/20 p-4">
               <Textarea value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Reply to the client…" rows={3} />
-              <div className="flex justify-end">
+                <div className="flex items-center justify-between gap-2">
+                  <Input type="file" className="max-w-56 text-xs" onChange={(event) => setReplyFile(event.target.files?.[0] ?? null)} />
                 <Button size="sm" disabled={pending || reply.trim().length === 0} onClick={send}>Reply and email client</Button>
               </div>
             </div>

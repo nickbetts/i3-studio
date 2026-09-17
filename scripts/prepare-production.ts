@@ -64,6 +64,12 @@ await database.transaction([
   database.query("ALTER TABLE onboarding_submission ADD COLUMN IF NOT EXISTS onboarding_flow_id text REFERENCES onboarding_flow(id) ON DELETE SET NULL"),
   database.query("ALTER TABLE task ADD COLUMN IF NOT EXISTS project_id text REFERENCES project(id) ON DELETE CASCADE"),
   database.query("CREATE INDEX IF NOT EXISTS task_project_idx ON task (project_id)"),
+  database.query("CREATE TABLE IF NOT EXISTS task_comment (id text PRIMARY KEY, task_id text NOT NULL REFERENCES task(id) ON DELETE CASCADE, author_user_id text REFERENCES \"user\"(id) ON DELETE SET NULL, body text NOT NULL, created_at timestamptz NOT NULL DEFAULT now())"),
+  database.query("CREATE INDEX IF NOT EXISTS task_comment_task_idx ON task_comment (task_id)"),
+    database.query("ALTER TABLE ticket_message ADD COLUMN IF NOT EXISTS attachment_url text"),
+    database.query("ALTER TABLE ticket_message ADD COLUMN IF NOT EXISTS attachment_name text"),
+    database.query("ALTER TABLE ticket_message ADD COLUMN IF NOT EXISTS attachment_content_type text"),
+    database.query("ALTER TABLE ticket_message ADD COLUMN IF NOT EXISTS attachment_size integer"),
 ]);
 await seedDefaults();
 console.log("Additive authentication and webhook safeguards ready. Existing data was not reset.");

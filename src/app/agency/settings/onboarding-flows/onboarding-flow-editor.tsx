@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { OnboardingFlowField, OnboardingFlowFieldType, OnboardingFlowStep } from "@/lib/onboarding-flow";
+import { useUnsavedChangesWarning } from "@/lib/use-unsaved-changes-warning";
 import { saveOnboardingFlow } from "./actions";
 
 const FIELD_TYPES: OnboardingFlowFieldType[] = ["text", "url", "email", "tel", "textarea", "select", "checkbox"];
@@ -34,6 +35,8 @@ export function OnboardingFlowEditor({
   const [clientTypeId, setClientTypeId] = useState<string | null>(initialClientTypeId);
   const [steps, setSteps] = useState<OnboardingFlowStep[]>(initialSteps ?? []);
   const [pending, start] = useTransition();
+  const dirty = JSON.stringify({ name, clientTypeId, steps }) !== JSON.stringify({ name: initialName, clientTypeId: initialClientTypeId, steps: initialSteps ?? [] });
+  useUnsavedChangesWarning(dirty);
 
   const updateStep = (index: number, patch: Partial<OnboardingFlowStep>) =>
     setSteps((prev) => prev.map((step, i) => (i === index ? { ...step, ...patch } : step)));
@@ -63,6 +66,7 @@ export function OnboardingFlowEditor({
 
   return (
     <div className="space-y-5">
+      {dirty ? <p className="text-xs text-amber-600 dark:text-amber-400">You have unsaved changes.</p> : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>Flow name</Label>

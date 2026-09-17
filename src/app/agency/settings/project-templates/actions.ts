@@ -41,3 +41,15 @@ export async function archiveProjectTemplate(formData: FormData): Promise<void> 
   await auditLog({ actorUserId: actor.id, action: "project_template.archived", entityType: "project_template", entityId: templateId });
   revalidatePath("/agency/settings/project-templates");
 }
+
+export async function duplicateProjectTemplate(formData: FormData): Promise<void> {
+  const actor = await requireAdmin();
+  const templateId = String(formData.get("templateId") ?? "");
+  const original = await db.query.projectTemplates.findFirst({ where: eq(projectTemplates.id, templateId) });
+  if (!original) return;
+  let name = `${original.name} (copy)`;
+  for (let attempt = 2; await db.query.projectTemplates.findFirst({ where: eq(projectTemplates.name, name) }); attempt++) name = `${original.name} (copy ${attempt})`;
+  const [row] = await db.insert(projectTemplates).values({ name, clientTypeId: original.clientTypeId, milestones: original.milestones, deliverables: original.deliverables, createdByUserId: actor.id }).returning({ id: projectTemplates.id });
+  await auditLog({ actorUserId: actor.id, action: "project_template.duplicated", entityType: "project_template", entityId: row.id, metadata: { sourceId: templateId } });
+  revalidatePath("/agency/settings/project-templates");
+}
