@@ -3,7 +3,6 @@ import { CURRENT_TERMS_VERSION } from "@/lib/onboarding-flow";
 
 export const metadata = { title: "Privacy Policy · i3 Studio" };
 
-// Fields in [brackets] are placeholders for the operating entity's registered details and must be confirmed before publishing.
 export default function PrivacyPolicyPage() {
   return (
     <div className="mx-auto w-full max-w-2xl flex-1 space-y-6 p-6">
@@ -15,11 +14,12 @@ export default function PrivacyPolicyPage() {
       <section className="space-y-2">
         <h2 className="text-lg font-medium">1. Who we are</h2>
         <p className="text-sm text-muted-foreground">
-          This Privacy Policy is issued by [i3 Studio Ltd], a company registered in England and Wales under company
-          number [00000000], with its registered office at [registered address] (&ldquo;i3 Studio&rdquo;, &ldquo;we&rdquo;,
-          &ldquo;us&rdquo;). We are the data controller for the personal data described in this policy. If you have any
-          questions about this policy or how we handle your data, contact our data protection lead at{" "}
-          <a href="mailto:privacy@i3studio.com" className="underline underline-offset-4">privacy@i3studio.com</a>.
+          This Privacy Policy is issued by i3MEDIA LTD, a company registered in England and Wales under company number
+          06864761, with its registered office at Unit 2b First Floor, Flag Business Exchange, Vicarage Farm Road,
+          Peterborough, England, PE1 5TX (&ldquo;i3 Studio&rdquo;, &ldquo;i3MEDIA&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;).
+          We are the data controller for the personal data described in this policy. If you have any questions about
+          this policy or how we handle your data, contact us at{" "}
+          <a href="mailto:support@i3media.net" className="underline underline-offset-4">support@i3media.net</a>.
         </p>
         <p className="text-sm text-muted-foreground">
           This policy applies to the i3 Studio agency and client portal platform (the &ldquo;Platform&rdquo;) and to
@@ -116,7 +116,7 @@ export default function PrivacyPolicyPage() {
         </ul>
         <p className="text-sm text-muted-foreground">
           To exercise any of these rights, contact your account manager or email{" "}
-          <a href="mailto:privacy@i3studio.com" className="underline underline-offset-4">privacy@i3studio.com</a>. We will
+          <a href="mailto:support@i3media.net" className="underline underline-offset-4">support@i3media.net</a>. We will
           respond within one month, as required by law. We do not use automated decision-making or profiling that
           produces legal or similarly significant effects on you.
         </p>

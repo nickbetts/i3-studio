@@ -3,7 +3,6 @@ import { CURRENT_TERMS_VERSION } from "@/lib/onboarding-flow";
 
 export const metadata = { title: "Terms of Use · i3 Studio" };
 
-// Fields in [brackets] are placeholders for the operating entity's registered details and must be confirmed before publishing.
 export default function TermsOfUsePage() {
   return (
     <div className="mx-auto w-full max-w-2xl flex-1 space-y-6 p-6">
@@ -16,10 +15,10 @@ export default function TermsOfUsePage() {
         <h2 className="text-lg font-medium">1. Acceptance of these terms</h2>
         <p className="text-sm text-muted-foreground">
           These Terms of Use (&ldquo;Terms&rdquo;) govern access to and use of the i3 Studio agency and client portal
-          (the &ldquo;Platform&rdquo;), operated by [i3 Studio Ltd], a company registered in England and Wales under
-          company number [00000000], registered office [registered address] (&ldquo;i3 Studio&rdquo;, &ldquo;we&rdquo;,
-          &ldquo;us&rdquo;). By logging in to or using the Platform you agree to these Terms. If you do not agree, do not
-          use the Platform.
+          (the &ldquo;Platform&rdquo;), operated by i3MEDIA LTD, a company registered in England and Wales under company
+          number 06864761, registered office Unit 2b First Floor, Flag Business Exchange, Vicarage Farm Road,
+          Peterborough, England, PE1 5TX (&ldquo;i3 Studio&rdquo;, &ldquo;i3MEDIA&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;).
+          By logging in to or using the Platform you agree to these Terms. If you do not agree, do not use the Platform.
         </p>
         <p className="text-sm text-muted-foreground">
           These Terms govern use of the Platform itself. They do not replace any separate signed service agreement,
@@ -35,7 +34,7 @@ export default function TermsOfUsePage() {
           account. You must be at least 18 years old and authorised to act on behalf of your organisation. You are
           responsible for keeping your login credentials confidential and for all activity carried out under your
           account. Notify us immediately at{" "}
-          <a href="mailto:support@i3studio.com" className="underline underline-offset-4">support@i3studio.com</a> if you
+          <a href="mailto:support@i3media.net" className="underline underline-offset-4">support@i3media.net</a> if you
           suspect unauthorised access to your account.
         </p>
       </section>
@@ -135,7 +134,7 @@ export default function TermsOfUsePage() {
         <h2 className="text-lg font-medium">12. Contact</h2>
         <p className="text-sm text-muted-foreground">
           Questions about these Terms can be sent to{" "}
-          <a href="mailto:support@i3studio.com" className="underline underline-offset-4">support@i3studio.com</a>.
+          <a href="mailto:support@i3media.net" className="underline underline-offset-4">support@i3media.net</a>.
         </p>
       </section>
 
