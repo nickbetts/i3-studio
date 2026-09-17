@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { prepareUpload } from "@/lib/upload-client";
 import { addTaskComment, addTaskDependency, createSubtask, deleteTaskComment, getTaskDetail, updateChecklist, updateTaskDetails, type TaskDetail } from "./actions";
 
@@ -30,7 +31,7 @@ export function TaskDetailDialog({ taskId, title, currentUserId, canEdit }: { ta
     getTaskDetail(taskId).then((result) => {
       setDetail(result);
       setLoading(false);
-    });
+    }).catch(() => { setLoading(false); toast.error("Could not load the task. Please reopen it to retry."); });
   }, [open, taskId]);
 
   function save() {
@@ -68,68 +69,69 @@ export function TaskDetailDialog({ taskId, title, currentUserId, canEdit }: { ta
     <>
       <button type="button" className="text-left font-medium underline-offset-4 hover:underline" onClick={() => setOpen(true)}>{title}</button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Task details</DialogTitle>
-            <DialogDescription>View and update this task, and leave notes for the team.</DialogDescription>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription>{canEdit ? "Task workspace" : "Read-only task"}</DialogDescription>
           </DialogHeader>
           {loading || !detail ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{loading ? "Loading task..." : "Task unavailable. Close and retry."}</p>
           ) : (
-            <div className="space-y-4">
+            <Tabs defaultValue="details" className="min-w-0">
+              <TabsList className="mb-3 w-full"><TabsTrigger value="details">Details</TabsTrigger><TabsTrigger value="comments">Comments ({detail.comments.length})</TabsTrigger><TabsTrigger value="activity">Activity</TabsTrigger></TabsList>
+              <TabsContent value="details" className="space-y-4">
               <div className="space-y-2">
                 <Label>Title</Label>
-                <Input value={detail.title} disabled={!canEdit} onChange={(event) => setDetail({ ...detail, title: event.target.value })} />
+                <Input aria-label="Task title" value={detail.title} disabled={!canEdit} onChange={(event) => setDetail({ ...detail, title: event.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>Description</Label>
-                <Textarea value={detail.description ?? ""} disabled={!canEdit} onChange={(event) => setDetail({ ...detail, description: event.target.value })} />
+                <Textarea aria-label="Task description" value={detail.description ?? ""} disabled={!canEdit} onChange={(event) => setDetail({ ...detail, description: event.target.value })} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label>Priority</Label>
                   <Select value={detail.priority} disabled={!canEdit} onValueChange={(value) => setDetail({ ...detail, priority: value as TaskDetail["priority"] })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger aria-label="Task priority"><SelectValue /></SelectTrigger>
                     <SelectContent>{["low", "medium", "high", "urgent"].map((p) => <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Due date</Label>
-                  <Input type="date" value={detail.dueDate ?? ""} disabled={!canEdit} onChange={(event) => setDetail({ ...detail, dueDate: event.target.value })} />
+                  <Input aria-label="Task due date" type="date" value={detail.dueDate ?? ""} disabled={!canEdit} onChange={(event) => setDetail({ ...detail, dueDate: event.target.value })} />
                 </div>
               </div>
-              {canEdit ? <Button size="sm" variant="outline" onClick={save} disabled={pending}>Save changes</Button> : null}
-
               <div className="grid gap-4 border-t pt-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Repeat</Label>
                   <Select value={detail.recurrenceRule ?? "none"} disabled={!canEdit} onValueChange={(value) => setDetail({ ...detail, recurrenceRule: value === "none" ? null : value as TaskDetail["recurrenceRule"] })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger aria-label="Repeat task"><SelectValue /></SelectTrigger>
                     <SelectContent><SelectItem value="none">Does not repeat</SelectItem><SelectItem value="daily">Daily</SelectItem><SelectItem value="weekly">Weekly</SelectItem><SelectItem value="monthly">Monthly</SelectItem></SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2"><Label>Activity</Label><div className="max-h-24 overflow-y-auto text-xs text-muted-foreground">{detail.activities.length === 0 ? "No activity yet." : detail.activities.slice(0, 4).map((item) => <p key={item.id}>{item.actorName ?? "Someone"} {item.action.replaceAll("_", " ")}</p>)}</div></div>
               </div>
-              {canEdit ? <Button size="sm" variant="outline" onClick={save} disabled={pending}>Save recurrence</Button> : null}
+              {canEdit ? <Button size="sm" onClick={save} disabled={pending}>Save changes</Button> : null}
 
               <div className="space-y-2 border-t pt-4">
                 <Label>Checklist</Label>
-                {detail.checklist.map((item) => <label key={item.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={item.done} onChange={(event) => { const checklist = detail.checklist.map((entry) => entry.id === item.id ? { ...entry, done: event.target.checked } : entry); setDetail({ ...detail, checklist }); updateChecklist(taskId, checklist); }} /> <span className={item.done ? "text-muted-foreground line-through" : ""}>{item.label}</span></label>)}
-                <div className="flex gap-2"><Input value={checklistLabel} onChange={(event) => setChecklistLabel(event.target.value)} placeholder="Add checklist item" /><Button size="sm" variant="outline" onClick={() => { if (!checklistLabel.trim()) return; const checklist = [...detail.checklist, { id: crypto.randomUUID(), label: checklistLabel.trim(), done: false }]; setDetail({ ...detail, checklist }); setChecklistLabel(""); updateChecklist(taskId, checklist); }}>Add</Button></div>
+                <p className="text-xs text-muted-foreground">{detail.checklist.filter((item) => item.done).length} of {detail.checklist.length} complete</p>
+                {detail.checklist.map((item) => <label key={item.id} className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={!canEdit || pending} checked={item.done} onChange={(event) => { const checklist = detail.checklist.map((entry) => entry.id === item.id ? { ...entry, done: event.target.checked } : entry); start(async () => { await updateChecklist(taskId, checklist); setDetail({ ...detail, checklist }); }); }} /> <span className={item.done ? "text-muted-foreground line-through" : ""}>{item.label}</span></label>)}
+                {canEdit ? <div className="flex gap-2"><Input aria-label="Checklist item" value={checklistLabel} onChange={(event) => setChecklistLabel(event.target.value)} placeholder="Add checklist item" /><Button size="sm" variant="outline" disabled={pending || !checklistLabel.trim()} onClick={() => { const checklist = [...detail.checklist, { id: crypto.randomUUID(), label: checklistLabel.trim(), done: false }]; start(async () => { await updateChecklist(taskId, checklist); setDetail({ ...detail, checklist }); setChecklistLabel(""); }); }}>Add</Button></div> : null}
               </div>
 
               <div className="space-y-2 border-t pt-4">
                 <Label>Subtasks</Label>
                 {detail.subtasks.map((item) => <p key={item.id} className="text-sm">{item.title} <span className="text-xs capitalize text-muted-foreground">({item.status.replace("_", " ")})</span></p>)}
-                <div className="flex gap-2"><Input value={subtaskTitle} onChange={(event) => setSubtaskTitle(event.target.value)} placeholder="Add subtask" /><Button size="sm" variant="outline" onClick={async () => { if (!subtaskTitle.trim()) return; await createSubtask(taskId, subtaskTitle); setSubtaskTitle(""); const refreshed = await getTaskDetail(taskId); setDetail(refreshed); }}>Add</Button></div>
+                {canEdit ? <div className="flex gap-2"><Input aria-label="Subtask title" value={subtaskTitle} onChange={(event) => setSubtaskTitle(event.target.value)} placeholder="Add subtask" /><Button size="sm" variant="outline" disabled={pending || !subtaskTitle.trim()} onClick={() => start(async () => { await createSubtask(taskId, subtaskTitle); setSubtaskTitle(""); setDetail(await getTaskDetail(taskId)); })}>Add</Button></div> : null}
               </div>
 
               <div className="space-y-2 border-t pt-4">
                 <Label>Dependencies</Label>
                 {detail.dependencies.map((item) => <p key={item.id} className="text-sm">Blocked by: {item.title} <span className="text-xs capitalize text-muted-foreground">({item.status.replace("_", " ")})</span></p>)}
-                <div className="flex gap-2"><Input value={dependencyId} onChange={(event) => setDependencyId(event.target.value)} placeholder="Paste task ID to link" /><Button size="sm" variant="outline" onClick={async () => { if (!dependencyId.trim()) return; await addTaskDependency(taskId, dependencyId.trim()); setDependencyId(""); const refreshed = await getTaskDetail(taskId); setDetail(refreshed); }}>Link</Button></div>
+                {canEdit ? <div className="flex gap-2"><Select value={dependencyId} onValueChange={setDependencyId}><SelectTrigger aria-label="Dependency task" className="min-w-0 flex-1"><SelectValue placeholder="Choose a task" /></SelectTrigger><SelectContent>{detail.dependencyOptions.map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent></Select><Button size="sm" variant="outline" disabled={pending || !dependencyId} onClick={() => start(async () => { await addTaskDependency(taskId, dependencyId); setDependencyId(""); setDetail(await getTaskDetail(taskId)); })}>Link</Button></div> : null}
               </div>
-
+              </TabsContent>
+              <TabsContent value="comments">
               <div className="space-y-3 border-t pt-4">
                 <Label>Comments</Label>
                 {detail.comments.length === 0 ? (
@@ -142,8 +144,8 @@ export function TaskDetailDialog({ taskId, title, currentUserId, canEdit }: { ta
                           <span className="font-medium">{item.authorName ?? "Unknown"}</span>
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleString()}</span>
-                            {item.authorUserId === currentUserId || canEdit ? (
-                              <form action={deleteTaskComment}>
+                            {item.authorUserId === currentUserId || detail.canManage ? (
+                              <form action={(form) => start(async () => { await deleteTaskComment(form); setDetail(await getTaskDetail(taskId)); })}>
                                 <input type="hidden" name="commentId" value={item.id} />
                                 <input type="hidden" name="taskId" value={taskId} />
                                 <button type="submit" className="text-xs text-muted-foreground hover:text-destructive">Delete</button>
@@ -158,14 +160,18 @@ export function TaskDetailDialog({ taskId, title, currentUserId, canEdit }: { ta
                   </div>
                 )}
                 <div className="flex gap-2">
-                  <Textarea value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Add a comment…" rows={2} />
+                  <Textarea aria-label="Task comment" disabled={!canEdit} value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Add a comment…" rows={2} />
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <Input type="file" className="max-w-56 text-xs" onChange={(event) => setCommentFile(event.target.files?.[0] ?? null)} />
-                  <Button size="sm" onClick={submitComment} disabled={pending || !comment.trim()}>Add comment</Button>
+                  <Input aria-label="Comment attachment" disabled={!canEdit || pending} type="file" key={commentFile ? "selected" : "empty"} className="min-w-0 max-w-56 text-xs" onChange={(event) => setCommentFile(event.target.files?.[0] ?? null)} />
+                  <Button size="sm" onClick={submitComment} disabled={!canEdit || pending || !comment.trim()}>Add comment</Button>
                 </div>
               </div>
-            </div>
+              </TabsContent>
+              <TabsContent value="activity" className="space-y-3">
+                {detail.activities.length === 0 ? <p className="py-5 text-sm text-muted-foreground">No activity yet.</p> : detail.activities.map((item) => <div key={item.id} className="border-l-2 border-primary/40 pl-3"><p className="text-sm">{item.actorName ?? "Someone"} {item.action.replaceAll("_", " ")}</p><time className="text-xs text-muted-foreground" dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString()}</time></div>)}
+              </TabsContent>
+            </Tabs>
           )}
           <DialogFooter>
             <Button variant="ghost" onClick={() => setOpen(false)}>Close</Button>

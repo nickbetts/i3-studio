@@ -59,8 +59,8 @@ export async function stopTimer(): Promise<{ ok: boolean; error?: string; durati
 export async function setClientTimeBudget(formData: FormData): Promise<void> {
   const actor = await requireManager();
   const clientAccountId = String(formData.get("clientAccountId") || "");
-  const periodStart = new Date(`${String(formData.get("periodStart") || "")}T00:00:00`);
-  const periodEnd = new Date(`${String(formData.get("periodEnd") || "")}T23:59:59.999`);
+  const periodStart = new Date(`${String(formData.get("periodStart") || "")}T00:00:00.000Z`);
+  const periodEnd = new Date(`${String(formData.get("periodEnd") || "")}T23:59:59.999Z`);
   const hours = Number(formData.get("hours"));
   if (!clientAccountId || Number.isNaN(periodStart.getTime()) || Number.isNaN(periodEnd.getTime()) || periodEnd <= periodStart || !Number.isFinite(hours) || hours < 0 || hours > 10000) return;
   await db.insert(clientTimeBudgets).values({ clientAccountId, periodStart, periodEnd, allocatedSeconds: Math.round(hours * 3600), createdByUserId: actor.id, updatedAt: new Date() }).onConflictDoUpdate({ target: [clientTimeBudgets.clientAccountId, clientTimeBudgets.periodStart], set: { periodEnd, allocatedSeconds: Math.round(hours * 3600), updatedAt: new Date() } });

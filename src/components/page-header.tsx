@@ -6,7 +6,7 @@ type Crumb = { label: string; href?: string };
 
 export function PageHeader({ title, description, actions, breadcrumbs }: { title: string; description?: string; actions?: ReactNode; breadcrumbs?: Crumb[] }) {
   return (
-    <div className="space-y-2">
+    <div className="page-header space-y-3 border-b border-border/70 pb-5">
       {breadcrumbs?.length ? (
         <nav className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
           {breadcrumbs.map((crumb, index) => (
@@ -18,11 +18,11 @@ export function PageHeader({ title, description, actions, breadcrumbs }: { title
         </nav>
       ) : null}
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-          {description ? <p className="mt-1 text-muted-foreground">{description}</p> : null}
+        <div className="min-w-0">
+          <h1 className="break-words text-2xl font-semibold">{title}</h1>
+          {description ? <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">{description}</p> : null}
         </div>
-        {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+        {actions ? <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div> : null}
       </div>
     </div>
   );

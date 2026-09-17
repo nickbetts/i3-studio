@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
+import { CreatePanel } from "@/components/create-panel";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
 import { db } from "@/db";
@@ -34,7 +35,7 @@ export default async function AgencyContentPage() {
         description="Draft blog posts and page copy, then move them through review and client approval."
         actions={<Button variant="outline" asChild><Link href="/agency/content/templates">Templates</Link></Button>}
       />
-      <Card>
+      <CreatePanel title="New content"><Card>
         <CardHeader>
           <CardTitle className="text-base">New content</CardTitle>
           <CardDescription>Pick a template and assign a writer to start a draft.</CardDescription>
@@ -73,7 +74,7 @@ export default async function AgencyContentPage() {
             </form>
           )}
         </CardContent>
-      </Card>
+      </Card></CreatePanel>
 
       <Card>
         <CardHeader><CardTitle className="text-base">All content</CardTitle></CardHeader>

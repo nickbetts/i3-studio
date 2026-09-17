@@ -10,7 +10,7 @@ export function BrandMark({ label = "i3", size = "md", className }: { label?: st
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center justify-center bg-linear-to-br from-primary to-violet-400 font-bold tracking-tight text-primary-foreground shadow-lg shadow-primary/30 ring-1 ring-inset ring-white/15",
+        "flex shrink-0 items-center justify-center bg-primary font-bold text-primary-foreground ring-1 ring-inset ring-white/15",
         sizes[size],
         className,
       )}

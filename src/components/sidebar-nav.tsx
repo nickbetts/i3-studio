@@ -16,16 +16,20 @@ const icons = { calendar: CalendarClock, files: FileCheck2, projects: FolderKanb
 
 export function SidebarNav({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
+  const groupFor = (item: NavItem) => ["reports", "settings"].includes(item.icon) ? "Manage" : ["content", "files", "designs", "reference", "support"].includes(item.icon) ? "Collaborate" : "Workspace";
+  const orderedItems = ["Workspace", "Collaborate", "Manage"].flatMap((group) => items.filter((item) => groupFor(item) === group));
 
   return (
     <nav className="flex flex-col gap-1">
-      {items.map((item) => {
-        const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+      {orderedItems.map((item, index) => {
+        const active = pathname === item.href || (item.icon !== "dashboard" && pathname.startsWith(`${item.href}/`));
         const Icon = icons[item.icon];
         return (
+          <div key={item.href}>
+          {index === 0 || groupFor(item) !== groupFor(orderedItems[index - 1]) ? <p className="px-3 pb-2 pt-3 text-[11px] font-medium text-muted-foreground">{groupFor(item)}</p> : null}
           <Link
-            key={item.href}
             href={item.href}
+            aria-current={active ? "page" : undefined}
             className={cn(
               "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all",
               active
@@ -47,6 +51,7 @@ export function SidebarNav({ items }: { items: NavItem[] }) {
               </span>
             ) : null}
           </Link>
+          </div>
         );
       })}
     </nav>

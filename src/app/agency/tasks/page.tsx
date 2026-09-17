@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/page-header";
+import { CreatePanel } from "@/components/create-panel";
+import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { db } from "@/db";
 import { clientAccounts, projects, savedTaskViews, tasks, users } from "@/db/schema";
@@ -103,7 +105,7 @@ export default async function AgencyTasksPage({ searchParams }: { searchParams: 
       <PageHeader title="Tasks" description="Everything the team needs to do, in one place." />
 
       {canManage ? (
-        <Card>
+        <CreatePanel title="New task"><Card>
           <CardHeader><CardTitle className="text-base">Create a task</CardTitle><CardDescription>Tasks appear here and in the client portal as outstanding items.</CardDescription></CardHeader>
           <CardContent>
             <form action={createTask} className="grid gap-4 md:grid-cols-2">
@@ -118,7 +120,7 @@ export default async function AgencyTasksPage({ searchParams }: { searchParams: 
               <div><Button type="submit">Create task</Button></div>
             </form>
           </CardContent>
-        </Card>
+        </Card></CreatePanel>
       ) : null}
 
       <Card>
@@ -126,7 +128,7 @@ export default async function AgencyTasksPage({ searchParams }: { searchParams: 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div><CardTitle className="text-base">Task queue</CardTitle><CardDescription>{rows.length} matching task{rows.length === 1 ? "" : "s"}.</CardDescription></div>
             <div className="flex flex-wrap gap-2">
-              {savedViews.map((view) => { const filters = view.filters as Record<string, string>; const query = new URLSearchParams(filters).toString(); return <a key={view.id} href={`/agency/tasks?${query}`} className="inline-flex h-9 items-center rounded-md border px-3 text-sm hover:bg-muted">{view.name}</a>; })}
+              {savedViews.map((view) => { const filters = view.filters as Record<string, string>; const query = new URLSearchParams(filters).toString(); return <Link key={view.id} href={`/agency/tasks?${query}`} className="inline-flex h-9 items-center rounded-md border px-3 text-sm hover:bg-muted">{view.name}</Link>; })}
               <TaskFilterSelect paramKey="assignee" placeholder="My tasks" options={[{ value: "me", label: "My tasks" }, { value: "all", label: "All tasks" }]} />
               <TaskFilterSelect paramKey="clientId" placeholder="All clients" options={[{ value: "", label: "All clients" }, ...clients.map((client) => ({ value: client.id, label: client.name }))]} />
               <TaskFilterSelect paramKey="projectId" placeholder="All projects" options={[{ value: "", label: "All projects" }, ...allProjects.map((project) => ({ value: project.id, label: project.name }))]} />

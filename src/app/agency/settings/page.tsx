@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
+import { CreatePanel } from "@/components/create-panel";
 import { ConfirmButton } from "@/components/confirm-button";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -39,18 +40,18 @@ export default async function AgencySettingsPage() {
       />
 
 
-      <Card>
+      <CreatePanel title="Add teammate"><Card>
         <CardHeader>
           <CardTitle className="text-base">Add teammate</CardTitle>
           <CardDescription>Create an internal user account.</CardDescription>
         </CardHeader>
         <CardContent>
           <form action={createTeammate} className="grid gap-4 md:grid-cols-4">
-            <Input name="name" placeholder="Name" required />
-            <Input name="email" type="email" placeholder="Email" required />
-            <Input name="password" type="password" minLength={8} placeholder="Temporary password" required />
+            <Input aria-label="Teammate name" name="name" placeholder="Name" required />
+            <Input aria-label="Teammate email" name="email" type="email" placeholder="Email" required />
+            <Input aria-label="Temporary password" name="password" type="password" minLength={8} placeholder="Temporary password" required />
             <Select name="role" defaultValue="account_manager">
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label="Teammate role"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="account_manager">Account manager</SelectItem>
                 <SelectItem value="content_writer">Content writer</SelectItem>
@@ -60,7 +61,7 @@ export default async function AgencySettingsPage() {
             <Button type="submit">Add teammate</Button>
           </form>
         </CardContent>
-      </Card>
+      </Card></CreatePanel>
 
       <Card>
         <CardHeader>

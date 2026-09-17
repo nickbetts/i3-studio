@@ -68,7 +68,7 @@ export function TicketTable({ tickets, clientAccountId }: { tickets: Ticket[]; c
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative w-full max-w-xs">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Search your tickets…" className="pl-8" />
+          <Input aria-label="Search your tickets" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Search your tickets…" className="pl-8" />
         </div>
         <div className="flex flex-wrap gap-1">
           {STATUS_FILTERS.map((option) => (
@@ -96,7 +96,7 @@ export function TicketTable({ tickets, clientAccountId }: { tickets: Ticket[]; c
               return (
                 <TableRow key={ticket.id} className="cursor-pointer" onClick={() => setSelectedId(ticket.id)}>
                   <TableCell className="max-w-80 whitespace-normal">
-                    <p className="truncate font-medium">{ticket.subject}</p>
+                    <button type="button" className="max-w-full truncate text-left font-medium hover:text-primary" onClick={() => { setSelectedId(ticket.id); setReply(""); setReplyFile(null); }}>{ticket.subject}</button>
                     {last ? <p className="truncate text-xs text-muted-foreground">{last.body}</p> : null}
                   </TableCell>
                   <TableCell><PriorityBadge priority={ticket.priority} /></TableCell>
@@ -134,7 +134,7 @@ export function TicketTable({ tickets, clientAccountId }: { tickets: Ticket[]; c
                 <div key={message.id} className={`max-w-[85%] rounded-lg p-3 text-sm ${message.direction === "inbound" ? "ml-auto bg-primary/10" : "bg-muted"}`}>
                   <p className="whitespace-pre-wrap">{message.body}</p>
                     {message.attachmentUrl ? (
-                      <a href={message.attachmentUrl} target="_blank" rel="noreferrer" className="mt-1.5 flex items-center gap-1 text-xs font-medium underline underline-offset-2">
+                      <a href={`/api/files/ticket/${message.id}`} className="mt-1.5 flex items-center gap-1 break-all text-xs font-medium underline underline-offset-2">
                         <Paperclip className="size-3" />{message.attachmentName ?? "Attachment"}
                       </a>
                     ) : null}
@@ -146,9 +146,9 @@ export function TicketTable({ tickets, clientAccountId }: { tickets: Ticket[]; c
               ))}
             </div>
             <div className="space-y-2 border-t bg-muted/20 p-4">
-              <Textarea value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Write a reply…" rows={3} />
-                <div className="flex items-center justify-between gap-2">
-                  <Input type="file" className="max-w-56 text-xs" onChange={(event) => setReplyFile(event.target.files?.[0] ?? null)} />
+              <Textarea aria-label="Reply to support" value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Write a reply…" rows={3} />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Input aria-label="Reply attachment" key={replyFile ? "selected" : "empty"} type="file" className="min-w-0 max-w-56 text-xs" onChange={(event) => setReplyFile(event.target.files?.[0] ?? null)} />
                 <Button size="sm" disabled={pending || reply.trim().length === 0} onClick={send}>Reply</Button>
               </div>
             </div>

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
+import { CreatePanel } from "@/components/create-panel";
 import { EmptyState } from "@/components/empty-state";
 import { ConfirmButton } from "@/components/confirm-button";
 import { db } from "@/db";
@@ -26,7 +27,7 @@ export default async function ProjectTemplatesPage() {
     <div className="space-y-6">
       <PageHeader title="Project templates" description="Define the milestones and required designs/content for each project type." breadcrumbs={[{ label: "Settings", href: "/agency/settings" }, { label: "Project templates" }]} />
 
-      <Card>
+      <CreatePanel title="New project template"><Card>
         <CardHeader>
           <CardTitle className="text-base">New project template</CardTitle>
           <CardDescription>Starts empty; add milestones and required deliverables below after creating it.</CardDescription>
@@ -49,7 +50,7 @@ export default async function ProjectTemplatesPage() {
             <div className="flex items-end"><Button type="submit">Create template</Button></div>
           </form>
         </CardContent>
-      </Card>
+      </Card></CreatePanel>
 
       {templates.length === 0 ? (
         <EmptyState icon={LayoutTemplate} title="No project templates yet" description="Create your first template above." />

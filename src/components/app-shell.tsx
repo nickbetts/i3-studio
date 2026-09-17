@@ -6,6 +6,7 @@ import { BrandMark } from "@/components/brand-mark";
 import { SidebarNav, type NavItem } from "@/components/sidebar-nav";
 import { SignOutButton } from "@/components/sign-out-button";
 import { PreviewMenu, PreviewReturn, type PreviewTarget } from "@/components/preview-menu";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 
 type AppShellProps = {
   brand: string;
@@ -38,7 +39,7 @@ function SidebarBody({ brand, roleLabel, navItems, user, preview, previewTargets
         </div>
       </div>
       <div className="flex-1 overflow-y-auto px-3 py-3">
-        <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">Menu</p>
+        <div className="mb-5"><WorkspaceSwitcher items={navItems} /></div>
         <SidebarNav items={navItems} />
       </div>
       <div className="space-y-2 border-t border-border/60 p-3">
@@ -60,15 +61,16 @@ function SidebarBody({ brand, roleLabel, navItems, user, preview, previewTargets
 
 export function AppShell({ brand, navItems, user, roleLabel, children, preview = false, previewTargets = [], previewing = false }: AppShellProps) {
   return (
-    <div className="flex flex-1">
+    <div className="workspace flex min-w-0 flex-1">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:p-3 focus:text-primary-foreground">Skip to content</a>
       <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r border-border/60 bg-sidebar/70 backdrop-blur-xl md:flex">
         <SidebarBody brand={brand} roleLabel={roleLabel} navItems={navItems} user={user} preview={preview} previewTargets={previewTargets} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border/60 bg-background/70 px-4 backdrop-blur-xl md:hidden">
+        <header className="sticky top-0 z-30 flex h-14 min-w-0 items-center gap-3 border-b border-border/60 bg-background/95 px-4 md:hidden">
           <Sheet>
-            <SheetTrigger className="inline-flex size-9 items-center justify-center rounded-lg border border-border/60 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+            <SheetTrigger className="inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-border/60 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
               <Menu className="size-4" />
               <span className="sr-only">Open menu</span>
             </SheetTrigger>
@@ -77,14 +79,14 @@ export function AppShell({ brand, navItems, user, roleLabel, children, preview =
               <SidebarBody brand={brand} roleLabel={roleLabel} navItems={navItems} user={user} preview={preview} previewTargets={previewTargets} />
             </SheetContent>
           </Sheet>
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <BrandMark size="sm" />
             <span className="truncate text-sm font-semibold">{brand}</span>
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-6xl p-6 lg:p-8">{children}</div>
+        <main id="main-content" tabIndex={-1} className="min-w-0 flex-1">
+          <div className="workspace-content mx-auto w-full max-w-[1440px] px-4 pb-24 pt-6 sm:px-6 lg:px-10 lg:pt-8">{children}</div>
         </main>
       </div>
 

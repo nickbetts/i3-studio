@@ -212,17 +212,20 @@ export type TaskDetail = {
   checklist: { id: string; label: string; done: boolean }[];
   subtasks: { id: string; title: string; status: string }[];
   dependencies: { id: string; title: string; status: string }[];
+  dependencyOptions: { id: string; title: string }[];
+  canManage: boolean;
   activities: { id: string; action: string; createdAt: string; actorName: string | null }[];
   comments: { id: string; body: string; authorName: string | null; authorUserId: string | null; createdAt: string; attachmentUrl: string | null; attachmentName: string | null }[];
 };
 
 export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> {
-  await requireAgencyUser();
+  const actor = await requireAgencyUser();
   const task = await db.query.tasks.findFirst({ where: eq(tasks.id, taskId) });
   if (!task) return null;
   const comments = await db.query.taskComments.findMany({ where: eq(taskComments.taskId, taskId), orderBy: (comment, { asc }) => [asc(comment.createdAt)], with: { author: { columns: { id: true, name: true, email: true } } } });
   const subtasks = await db.query.tasks.findMany({ where: eq(tasks.parentTaskId, taskId), orderBy: (subtask, { asc }) => [asc(subtask.createdAt)] });
   const dependencies = await db.query.taskDependencies.findMany({ where: eq(taskDependencies.taskId, taskId), with: { dependsOnTask: true } });
+  const dependencyOptions = await db.query.tasks.findMany({ where: eq(tasks.clientAccountId, task.clientAccountId), columns: { id: true, title: true }, orderBy: (item, { asc }) => [asc(item.title)] });
   const activities = await db.query.taskActivities.findMany({ where: eq(taskActivities.taskId, taskId), orderBy: (activity, { desc }) => [desc(activity.createdAt)], with: { actor: { columns: { name: true, email: true } } } });
   return {
     id: task.id,
@@ -236,6 +239,8 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
     checklist: Array.isArray(task.checklist) ? task.checklist as TaskDetail["checklist"] : [],
     subtasks: subtasks.map((item) => ({ id: item.id, title: item.title, status: item.status })),
     dependencies: dependencies.map((item) => ({ id: item.dependsOnTask.id, title: item.dependsOnTask.title, status: item.dependsOnTask.status })),
+    dependencyOptions: dependencyOptions.filter((item) => item.id !== taskId && !dependencies.some((dependency) => dependency.dependsOnTaskId === item.id)),
+    canManage: actor.role === "admin" || actor.role === "account_manager",
     activities: activities.map((item) => ({ id: item.id, action: item.action, createdAt: item.createdAt.toISOString(), actorName: item.actor?.name ?? item.actor?.email ?? null })),
     comments: comments.map((comment) => ({ id: comment.id, body: comment.body, authorName: comment.author?.name ?? comment.author?.email ?? null, authorUserId: comment.authorUserId, createdAt: comment.createdAt.toISOString(), attachmentUrl: comment.attachmentUrl, attachmentName: comment.attachmentName })),
   };

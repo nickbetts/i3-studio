@@ -19,7 +19,7 @@ const nextConfig: NextConfig = {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://*.public.blob.vercel-storage.com https://picsum.photos",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.public.blob.vercel-storage.com https://*.private.blob.vercel-storage.com",
+      "connect-src 'self' https://vercel.com/api/blob/ https://*.public.blob.vercel-storage.com https://*.private.blob.vercel-storage.com",
       "frame-ancestors 'none'",
       "object-src 'none'",
       "base-uri 'self'",

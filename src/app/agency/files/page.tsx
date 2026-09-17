@@ -5,6 +5,7 @@ import { Download, File as FileIcon, FileArchive, FileImage, FileText } from "lu
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
+import { CreatePanel } from "@/components/create-panel";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
 import { SearchInput } from "@/components/search-input";
@@ -64,13 +65,13 @@ export default async function AgencyFilesPage({ searchParams }: { searchParams: 
   return (
     <div className="space-y-6">
       <PageHeader title="Files & approvals" description="Share documents with clients for review." />
-      <Card>
+      <CreatePanel title="Upload a file"><Card>
         <CardHeader>
           <CardTitle className="text-base">Upload a file</CardTitle>
           <CardDescription>Word documents, PDFs and other client deliverables are stored securely.</CardDescription>
         </CardHeader>
         <CardContent><UploadForm action={uploadDocument} clients={clients} kind="document" submitLabel="Upload for approval" /></CardContent>
-      </Card>
+      </Card></CreatePanel>
       <Card>
         <CardHeader className="gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">

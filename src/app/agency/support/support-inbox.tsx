@@ -72,12 +72,12 @@ export function SupportInbox({ tickets }: { tickets: Ticket[] }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative w-full max-w-xs">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search tickets…" className="pl-8" />
+          <Input aria-label="Search tickets" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search tickets…" className="pl-8" />
         </div>
         <div className="flex flex-wrap gap-2">
           {STATUS_FILTERS.map((value) => (
-            <Button key={value} size="sm" variant={statusFilter === value ? "default" : "outline"} className="capitalize" onClick={() => setStatusFilter(value)}>
-              {value}
+            <Button key={value} size="sm" aria-pressed={statusFilter === value} variant={statusFilter === value ? "secondary" : "ghost"} className="capitalize" onClick={() => setStatusFilter(value)}>
+              {value} <span className="ml-1 text-xs text-muted-foreground">{value === "all" ? tickets.length : tickets.filter((ticket) => ticket.status === value).length}</span>
             </Button>
           ))}
         </div>
@@ -104,7 +104,7 @@ export function SupportInbox({ tickets }: { tickets: Ticket[] }) {
                 return (
                   <TableRow key={ticket.id} className="cursor-pointer" onClick={() => setSelectedId(ticket.id)}>
                     <TableCell className="max-w-72 whitespace-normal">
-                      <p className="truncate font-medium">{ticket.subject}</p>
+                      <button type="button" className="max-w-full truncate text-left font-medium hover:text-primary" onClick={() => { setSelectedId(ticket.id); setReply(""); setReplyFile(null); }}>{ticket.subject}</button>
                       {last ? <p className="truncate text-xs text-muted-foreground">{last.body}</p> : null}
                     </TableCell>
                     <TableCell>{ticket.clientName}</TableCell>
@@ -128,11 +128,11 @@ export function SupportInbox({ tickets }: { tickets: Ticket[] }) {
               <p className="text-xs text-muted-foreground">{selected.clientName}</p>
               <div className="flex flex-wrap gap-2 pt-1">
                 <Select value={selected.status} onValueChange={(value) => startTransition(async () => { await updateTicketStatus(selected.id, value as Ticket["status"]); toast.success("Status updated"); })}>
-                  <SelectTrigger className="w-36 capitalize"><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label="Ticket status" className="w-36 capitalize"><SelectValue /></SelectTrigger>
                   <SelectContent>{["open", "pending", "resolved", "closed"].map((item) => <SelectItem key={item} value={item} className="capitalize">{item}</SelectItem>)}</SelectContent>
                 </Select>
                 <Select value={selected.priority} onValueChange={(value) => startTransition(async () => { await updateTicketPriority(selected.id, value as Ticket["priority"]); toast.success("Priority updated"); })}>
-                  <SelectTrigger className="w-32 capitalize"><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label="Ticket priority" className="w-32 capitalize"><SelectValue /></SelectTrigger>
                   <SelectContent>{["low", "medium", "high", "urgent"].map((item) => <SelectItem key={item} value={item} className="capitalize">{item}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
@@ -142,11 +142,11 @@ export function SupportInbox({ tickets }: { tickets: Ticket[] }) {
                 <div key={message.id} className={`max-w-[85%] rounded-lg p-3 text-sm ${message.direction === "inbound" ? "bg-muted" : "ml-auto bg-primary/10"}`}>
                   <p className="whitespace-pre-wrap">{message.body}</p>
                     {message.attachmentUrl ? (
-                      <a href={message.attachmentUrl} target="_blank" rel="noreferrer" className="mt-1.5 flex items-center gap-1 text-xs font-medium underline underline-offset-2">
+                      <a href={`/api/files/ticket/${message.id}`} className="mt-1.5 flex items-center gap-1 break-all text-xs font-medium underline underline-offset-2">
                         <Paperclip className="size-3" />{message.attachmentName ?? "Attachment"}
                       </a>
                     ) : null}
-                  <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
                     {message.channel === "email" ? <Mail className="size-3" /> : <MessageCircle className="size-3" />}
                     <span>{message.authorEmail || message.channel}</span>
                     <span>·</span>
@@ -156,9 +156,9 @@ export function SupportInbox({ tickets }: { tickets: Ticket[] }) {
               ))}
             </div>
             <div className="space-y-2 border-t bg-muted/20 p-4">
-              <Textarea value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Reply to the client…" rows={3} />
-                <div className="flex items-center justify-between gap-2">
-                  <Input type="file" className="max-w-56 text-xs" onChange={(event) => setReplyFile(event.target.files?.[0] ?? null)} />
+              <Textarea aria-label="Reply to client" value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Reply to the client…" rows={3} />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Input aria-label="Reply attachment" key={replyFile ? "selected" : "empty"} type="file" className="min-w-0 max-w-56 text-xs" onChange={(event) => setReplyFile(event.target.files?.[0] ?? null)} />
                 <Button size="sm" disabled={pending || reply.trim().length === 0} onClick={send}>Reply and email client</Button>
               </div>
             </div>

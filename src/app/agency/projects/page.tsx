@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
+import { CreatePanel } from "@/components/create-panel";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
 import { Pagination } from "@/components/pagination";
@@ -37,7 +38,7 @@ export default async function AgencyProjectsPage({ searchParams }: { searchParam
   return (
     <div className="space-y-6">
       <PageHeader title="Projects" description="Start a delivery workspace from a project template." />
-      <Card>
+      <CreatePanel title="New project"><Card>
         <CardHeader><CardTitle className="text-base">New project</CardTitle><CardDescription>Templates create a first-pass delivery plan for each project type.</CardDescription></CardHeader>
         <CardContent>
           <form action={createProject} className="grid gap-4 md:grid-cols-3">
@@ -47,7 +48,7 @@ export default async function AgencyProjectsPage({ searchParams }: { searchParam
             <div><Button type="submit">Create workspace</Button></div>
           </form>
         </CardContent>
-      </Card>
+      </Card></CreatePanel>
 
       <Card>
         <CardHeader className="gap-3"><div className="flex flex-wrap items-center justify-between gap-3"><div><CardTitle className="text-base">Project workspaces</CardTitle><CardDescription>{filtered.length} matching project{filtered.length === 1 ? "" : "s"}.</CardDescription></div><SearchInput placeholder="Search projects…" /></div></CardHeader>

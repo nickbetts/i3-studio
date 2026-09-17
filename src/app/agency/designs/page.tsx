@@ -4,6 +4,7 @@ import { Images } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
+import { CreatePanel } from "@/components/create-panel";
 import { EmptyState } from "@/components/empty-state";
 import { UploadForm } from "@/components/upload-form";
 import { DesignCanvasDialog } from "@/components/design-review/design-canvas-dialog";
@@ -32,13 +33,13 @@ export default async function AgencyDesignsPage({ searchParams }: { searchParams
   return (
     <div className="space-y-6">
       <PageHeader title="Design reviews" description="Upload screenshots for clients to annotate and approve." />
-      <Card>
+      <CreatePanel title="Upload a design"><Card>
         <CardHeader>
           <CardTitle className="text-base">Upload a design</CardTitle>
           <CardDescription>Use PNG, JPG, WebP or another browser-supported image.</CardDescription>
         </CardHeader>
         <CardContent><UploadForm action={uploadDesign} clients={clients} kind="design" submitLabel="Upload for review" /></CardContent>
-      </Card>
+      </Card></CreatePanel>
       <Card>
         <CardHeader className="gap-3">
           <CardTitle className="text-base">Design assets</CardTitle>

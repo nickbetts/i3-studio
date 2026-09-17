@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
+import { CreatePanel } from "@/components/create-panel";
 import { EmptyState } from "@/components/empty-state";
 import { ConfirmButton } from "@/components/confirm-button";
 import { db } from "@/db";
@@ -26,7 +27,7 @@ export default async function OnboardingFlowsPage() {
     <div className="space-y-6">
       <PageHeader title="Onboarding flows" description="Build the questions clients answer during onboarding, per client type." breadcrumbs={[{ label: "Settings", href: "/agency/settings" }, { label: "Onboarding flows" }]} />
 
-      <Card>
+      <CreatePanel title="New onboarding flow"><Card>
         <CardHeader>
           <CardTitle className="text-base">New onboarding flow</CardTitle>
           <CardDescription>Starts empty; add steps and questions below after creating it.</CardDescription>
@@ -49,7 +50,7 @@ export default async function OnboardingFlowsPage() {
             <div className="flex items-end"><Button type="submit">Create flow</Button></div>
           </form>
         </CardContent>
-      </Card>
+      </Card></CreatePanel>
 
       {flows.length === 0 ? (
         <EmptyState icon={ListChecks} title="No onboarding flows yet" description="Create your first flow above." />

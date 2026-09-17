@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
+import { CreatePanel } from "@/components/create-panel";
 import { EmptyState } from "@/components/empty-state";
 import { ConfirmButton } from "@/components/confirm-button";
 import { UploadForm } from "@/components/upload-form";
@@ -66,13 +67,13 @@ export default async function PortalFilesPage({ searchParams }: { searchParams: 
   return (
     <div className="space-y-6">
       <PageHeader title="Files" description="Share reference material with your team. Anything you upload here is visible to you and i3 Studio." />
-      <Card>
+      <CreatePanel title="Upload a reference file"><Card>
         <CardHeader>
           <CardTitle className="text-base">Upload a reference file</CardTitle>
           <CardDescription>Brand assets, briefs, examples — any file type up to 25MB.</CardDescription>
         </CardHeader>
         <CardContent><UploadForm action={uploadReference} fixedClientId={user.clientAccountId} kind="reference" submitLabel="Upload file" /></CardContent>
-      </Card>
+      </Card></CreatePanel>
       <Card>
         <CardHeader className="gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">

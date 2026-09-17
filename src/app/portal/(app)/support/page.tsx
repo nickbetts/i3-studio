@@ -1,6 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
+import { CreatePanel } from "@/components/create-panel";
 import { db } from "@/db";
 import { tickets } from "@/db/schema";
 import { requireClientUser } from "@/lib/auth-helpers";
@@ -18,7 +19,7 @@ export default async function PortalSupportPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Support" description="Ask the team a question and keep the whole conversation in one place." />
-      <Card>
+      <CreatePanel title="New support request" defaultOpen={ticketList.length === 0}><Card>
         <CardHeader>
           <CardTitle className="text-base">New support request</CardTitle>
           <CardDescription>We will reply here and by email when configured.</CardDescription>
@@ -26,7 +27,7 @@ export default async function PortalSupportPage() {
         <CardContent>
           <NewTicketForm clientAccountId={user.clientAccountId} />
         </CardContent>
-      </Card>
+      </Card></CreatePanel>
       <Card>
         <CardHeader><CardTitle className="text-base">Your tickets</CardTitle></CardHeader>
         <CardContent><TicketTable tickets={ticketList} clientAccountId={user.clientAccountId} /></CardContent>

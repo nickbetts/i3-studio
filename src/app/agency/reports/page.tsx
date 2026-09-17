@@ -47,7 +47,7 @@ export default async function AgencyReportsPage({ searchParams }: { searchParams
         <CardContent className="space-y-2">
           {audit.length === 0 ? <p className="text-sm text-muted-foreground">No activity recorded for this range.</p> : audit.map((entry) => (
             <div key={entry.id} className="flex flex-wrap items-center justify-between gap-3 border-b py-3 last:border-0">
-              <div><p className="text-sm font-medium">{entry.action}</p><p className="text-xs text-muted-foreground">{entry.entityType || "workspace"}{entry.entityId ? ` · ${entry.entityId}` : ""}</p></div>
+              <div><p className="text-sm font-medium capitalize">{entry.action.replace(/[._]/g, " ")}</p><p className="text-xs text-muted-foreground">{entry.entityType?.replaceAll("_", " ") || "workspace"}</p></div>
               <Badge variant="outline">{entry.createdAt.toLocaleString()}</Badge>
             </div>
           ))}

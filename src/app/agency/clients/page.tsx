@@ -15,6 +15,7 @@ import { db } from "@/db";
 import { clientAccounts, clientTypes } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
 import { createClient } from "./actions";
+import { CreatePanel } from "@/components/create-panel";
 
 const PAGE_SIZE = 10;
 
@@ -35,8 +36,8 @@ export default async function AgencyClientsPage({ searchParams }: { searchParams
   return (
     <div className="space-y-6">
       <PageHeader title="Clients" description="Manage accounts, access and work requests." />
-      <div className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
-        <Card>
+      <div className="space-y-6">
+        <CreatePanel title="New client"><Card>
           <CardHeader><CardTitle className="text-base">Add a client</CardTitle><CardDescription>Create an account and their first login.</CardDescription></CardHeader>
           <CardContent>
             <form action={createClient} className="space-y-4">
@@ -48,7 +49,7 @@ export default async function AgencyClientsPage({ searchParams }: { searchParams
               <Button type="submit">Create client</Button>
             </form>
           </CardContent>
-        </Card>
+        </Card></CreatePanel>
         <Card>
           <CardHeader className="gap-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -58,7 +59,7 @@ export default async function AgencyClientsPage({ searchParams }: { searchParams
           </CardHeader>
           <CardContent className="space-y-3">
             {pageItems.length === 0 ? (
-              <EmptyState icon={Users} title="No clients found" description={query ? "Try a different search." : "Create a client on the left to get started."} />
+              <EmptyState icon={Users} title="No clients found" description={query ? "Try a different search." : "No client accounts yet."} />
             ) : pageItems.map((client) => <div key={client.id} className="flex items-center justify-between rounded-md border p-3"><div><Link href={`/agency/clients/${client.id}`} className="font-medium underline-offset-4 hover:underline">{client.name}</Link><p className="text-xs text-muted-foreground">{client.slug}</p></div><Badge variant="outline" className="capitalize">{client.status}</Badge></div>)}
             <Pagination page={currentPage} totalPages={totalPages} />
           </CardContent>
