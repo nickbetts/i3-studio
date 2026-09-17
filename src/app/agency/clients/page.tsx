@@ -1,4 +1,4 @@
-import { desc } from "drizzle-orm";
+import { asc, desc } from "drizzle-orm";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,16 +9,17 @@ import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { db } from "@/db";
-import { clientAccounts, tasks } from "@/db/schema";
+import { clientAccounts, clientTypes, tasks } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
 import { createClient, createTask } from "./actions";
 import { TaskStatus } from "./task-status";
 
 export default async function AgencyClientsPage() {
   await requireAgencyUser();
-  const [clients, managers] = await Promise.all([
+  const [clients, managers, types] = await Promise.all([
     db.query.clientAccounts.findMany({ orderBy: desc(clientAccounts.createdAt) }),
     db.query.users.findMany({ where: (user, { eq }) => eq(user.role, "account_manager") }),
+    db.query.clientTypes.findMany({ where: (type, { eq }) => eq(type.archived, false), orderBy: asc(clientTypes.label) }),
   ]);
   const openTasks = await db.select({ id: tasks.id, title: tasks.title, status: tasks.status, priority: tasks.priority, clientAccountId: tasks.clientAccountId, dueDate: tasks.dueDate }).from(tasks).orderBy(desc(tasks.createdAt));
 
@@ -33,6 +34,7 @@ export default async function AgencyClientsPage() {
               <div className="space-y-2"><Label htmlFor="client-name">Company name</Label><Input id="client-name" name="name" required /></div>
               <div className="space-y-2"><Label htmlFor="client-email">Client email</Label><Input id="client-email" name="email" type="email" required /></div>
               <div className="space-y-2"><Label htmlFor="client-password">Temporary password</Label><Input id="client-password" name="password" type="password" minLength={8} required /></div>
+              <div className="space-y-2"><Label htmlFor="client-type">Client type</Label><Select name="clientTypeId"><SelectTrigger id="client-type"><SelectValue placeholder="No specific type" /></SelectTrigger><SelectContent>{types.map((type) => <SelectItem key={type.id} value={type.id}>{type.label}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-2"><Label htmlFor="client-manager">Account manager</Label><Select name="managerId"><SelectTrigger id="client-manager"><SelectValue placeholder="Assign later" /></SelectTrigger><SelectContent>{managers.map((manager) => <SelectItem key={manager.id} value={manager.id}>{manager.name || manager.email}</SelectItem>)}</SelectContent></Select></div>
               <Button type="submit">Create client</Button>
             </form>

@@ -48,6 +48,8 @@ test.afterAll(async () => {
   if (process.env.BLOB_PRIVATE_READ_WRITE_TOKEN) for (const upload of uploads) await del(upload.fileUrl, { token: process.env.BLOB_PRIVATE_READ_WRITE_TOKEN });
   await db.delete(referenceFiles).where(inArray(referenceFiles.id, uploads.map((upload) => upload.id)));
   await db.delete(projectTemplates).where(eq(projectTemplates.name, `E2E project template ${run}`));
+  const newClient = await db.query.clientAccounts.findFirst({ where: eq(clientAccounts.name, `E2E new client ${run}`) });
+  if (newClient) await db.delete(clientAccounts).where(eq(clientAccounts.id, newClient.id));
   await db.delete(auditLogs).where(inArray(auditLogs.clientAccountId, [clientId, otherClientId]));
   await db.delete(auditLogs).where(inArray(auditLogs.actorUserId, Object.values(actors).map((actor) => actor.id)));
   await db.delete(organizations).where(eq(organizations.id, organizationId));
@@ -145,4 +147,42 @@ test("admin builds a project template with milestones and required deliverables"
   const reloadedCard = page.locator('[data-testid^="project-template-"]', { has: page.getByText(templateName, { exact: true }) }).first();
   await expect(reloadedCard.locator('input[value="Discovery call"]')).toBeVisible();
   await expect(reloadedCard.locator('input[value="Homepage design"]')).toBeVisible();
+});
+
+test("admin creates a client with a client type, manages AMs, and builds a project from a template", async ({ page }) => {
+  const newClientName = `E2E new client ${run}`;
+  const newClientEmail = `e2e-new-client-${run}@example.invalid`;
+  await login(page, "admin");
+
+  await page.goto("/agency/clients");
+  await page.getByLabel("Company name", { exact: true }).fill(newClientName);
+  await page.getByLabel("Client email", { exact: true }).fill(newClientEmail);
+  await page.getByLabel("Temporary password", { exact: true }).fill(randomBytes(24).toString("base64url"));
+  await page.getByLabel("Client type", { exact: true }).click();
+  await page.getByRole("option", { name: "Charity", exact: true }).click();
+  await page.getByRole("button", { name: "Create client", exact: true }).click();
+  await expect(page.getByRole("link", { name: newClientName, exact: true })).toBeVisible();
+
+  await page.getByRole("link", { name: newClientName, exact: true }).click();
+  await expect(page).toHaveURL(/\/agency\/clients\/[a-z0-9-]+$/);
+  await page.getByLabel("Add account manager", { exact: true }).click();
+  await page.getByRole("option", { name: "E2E account_manager", exact: true }).click();
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Remove", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Remove", exact: true }).click();
+  await expect(page.getByText("None assigned", { exact: true })).toBeVisible();
+
+  await page.goto("/agency/projects");
+  await page.getByLabel("Client", { exact: true }).click();
+  await page.getByRole("option", { name: newClientName, exact: true }).click();
+  await page.getByLabel("Project name", { exact: true }).fill(`E2E new project ${run}`);
+  await page.getByLabel("Template", { exact: true }).click();
+  await page.getByRole("option", { name: "Charity site", exact: true }).click();
+  await page.getByRole("button", { name: "Create workspace", exact: true }).click();
+  await expect(page.getByRole("link", { name: `E2E new project ${run}`, exact: true })).toBeVisible();
+
+  await page.getByRole("link", { name: `E2E new project ${run}`, exact: true }).click();
+  await expect(page.getByText("Homepage design", { exact: true })).toBeVisible();
+  await expect(page.getByText("Donation page design", { exact: true })).toBeVisible();
+  await expect(page.locator('input[value="Discovery"]')).toBeVisible();
 });

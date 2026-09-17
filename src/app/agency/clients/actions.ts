@@ -14,6 +14,7 @@ const clientSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(8),
   managerId: z.string().optional(),
+  clientTypeId: z.string().optional(),
 });
 
 const taskSchema = z.object({
@@ -35,6 +36,7 @@ export async function createClient(formData: FormData): Promise<void> {
     email: formData.get("email"),
     password: formData.get("password"),
     managerId: formData.get("managerId") || undefined,
+    clientTypeId: formData.get("clientTypeId") || undefined,
   });
   if (!parsed.success) return;
 
@@ -51,6 +53,7 @@ export async function createClient(formData: FormData): Promise<void> {
     name: parsed.data.name,
     slug: `${baseSlug}-${Date.now().toString(36)}`,
     status: "onboarding",
+    clientTypeId: parsed.data.clientTypeId || null,
   }).returning({ id: clientAccounts.id });
 
   await db.insert(users).values({
@@ -115,4 +118,39 @@ export async function resetClientOnboarding(formData: FormData): Promise<void> {
   revalidatePath(`/agency/clients/${clientAccountId}`);
   revalidatePath("/portal");
   revalidatePath("/portal/onboarding");
+}
+
+export async function addAccountManager(formData: FormData): Promise<void> {
+  const actor = await requireManager();
+  const clientAccountId = String(formData.get("clientAccountId") || "");
+  const userId = String(formData.get("userId") || "");
+  if (!clientAccountId || !userId) return;
+  await db.insert(accountManagerAssignments).values({ clientAccountId, userId }).onConflictDoNothing();
+  await auditLog({ actorUserId: actor.id, action: "client.am_assigned", entityType: "client_account", entityId: clientAccountId, clientAccountId, metadata: { userId } });
+  revalidatePath(`/agency/clients/${clientAccountId}`);
+}
+
+export async function removeAccountManager(formData: FormData): Promise<void> {
+  const actor = await requireManager();
+  const assignmentId = String(formData.get("assignmentId") || "");
+  const clientAccountId = String(formData.get("clientAccountId") || "");
+  if (!assignmentId) return;
+  await db.delete(accountManagerAssignments).where(eq(accountManagerAssignments.id, assignmentId));
+  await auditLog({ actorUserId: actor.id, action: "client.am_removed", entityType: "client_account", entityId: clientAccountId, clientAccountId });
+  revalidatePath(`/agency/clients/${clientAccountId}`);
+}
+
+const clientDetailsStatuses = ["prospect", "onboarding", "active", "paused"] as const;
+
+export async function updateClientDetails(formData: FormData): Promise<void> {
+  const actor = await requireManager();
+  const clientAccountId = String(formData.get("clientAccountId") || "");
+  if (!clientAccountId) return;
+  const statusInput = String(formData.get("status") || "");
+  const status = (clientDetailsStatuses as readonly string[]).includes(statusInput) ? (statusInput as (typeof clientDetailsStatuses)[number]) : undefined;
+  const clientTypeId = String(formData.get("clientTypeId") || "") || null;
+  await db.update(clientAccounts).set({ ...(status ? { status } : {}), clientTypeId }).where(eq(clientAccounts.id, clientAccountId));
+  await auditLog({ actorUserId: actor.id, action: "client.updated", entityType: "client_account", entityId: clientAccountId, clientAccountId, metadata: { status, clientTypeId } });
+  revalidatePath(`/agency/clients/${clientAccountId}`);
+  revalidatePath("/agency/clients");
 }

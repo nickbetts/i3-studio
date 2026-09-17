@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { clientAccounts, onboardingSubmissions } from "@/db/schema";
 import { requireClientUser } from "@/lib/auth-helpers";
-import type { OnboardingData } from "@/lib/onboarding";
+import { resolveOnboardingFlow } from "@/lib/onboarding-flow-server";
 import { OnboardingWizard } from "./onboarding-wizard";
 
 export default async function OnboardingPage() {
@@ -17,8 +17,9 @@ export default async function OnboardingPage() {
   const submission = await db.query.onboardingSubmissions.findFirst({
     where: eq(onboardingSubmissions.clientAccountId, user.clientAccountId),
   });
+  const flow = await resolveOnboardingFlow(user.clientAccountId);
 
-  const initialData = (submission?.data ?? {}) as Partial<OnboardingData>;
+  const initialData = (submission?.data ?? {}) as Record<string, unknown>;
   const initialStep = submission?.currentStep ?? 0;
 
   return (
@@ -31,9 +32,10 @@ export default async function OnboardingPage() {
           </p>
         </div>
         <div className="flex justify-center">
-          <OnboardingWizard initialData={initialData} initialStep={initialStep} />
+          <OnboardingWizard flowId={flow.id} steps={flow.steps} initialData={initialData} initialStep={initialStep} />
         </div>
       </div>
     </div>
   );
 }
+

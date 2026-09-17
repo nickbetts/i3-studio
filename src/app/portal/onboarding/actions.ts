@@ -6,30 +6,43 @@ import { db } from "@/db";
 import { clientAccounts, onboardingSubmissions } from "@/db/schema";
 import { requireClientUser } from "@/lib/auth-helpers";
 import { auditLog } from "@/lib/audit";
-import { onboardingSchema, requiredForCompletion } from "@/lib/onboarding";
+import { getFlowSteps } from "@/lib/onboarding-flow-server";
 
 export type OnboardingActionState = { error?: string; ok?: boolean };
 
+// Flows are admin-defined and dynamic, so field values are stored generically rather
+// than against a fixed schema; only string/boolean values are kept, and trimmed/capped.
+function sanitize(data: Record<string, unknown>): Record<string, string | boolean> {
+  const result: Record<string, string | boolean> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (typeof value === "boolean") result[key] = value;
+    else if (value !== undefined && value !== null) result[key] = String(value).trim().slice(0, 5000);
+  }
+  return result;
+}
+
 export async function saveOnboardingStep(
+  flowId: string,
   data: Record<string, unknown>,
   currentStep: number,
 ): Promise<OnboardingActionState> {
   const user = await requireClientUser();
-  const parsed = onboardingSchema.partial().safeParse(data);
-  if (!parsed.success) return { error: "Some fields are invalid." };
+  const sanitized = sanitize(data);
 
   await db
     .insert(onboardingSubmissions)
     .values({
       clientAccountId: user.clientAccountId,
-      data: parsed.data,
+      onboardingFlowId: flowId || null,
+      data: sanitized,
       currentStep,
     })
     .onConflictDoUpdate({
       target: onboardingSubmissions.clientAccountId,
       set: {
         // Merge new values over existing JSON so partial saves accumulate.
-        data: sql`${onboardingSubmissions.data} || ${JSON.stringify(parsed.data)}::jsonb`,
+        data: sql`${onboardingSubmissions.data} || ${JSON.stringify(sanitized)}::jsonb`,
+        onboardingFlowId: flowId || null,
         currentStep,
         updatedAt: new Date(),
       },
@@ -38,14 +51,13 @@ export async function saveOnboardingStep(
   return { ok: true };
 }
 
-export async function completeOnboarding(data: Record<string, unknown>): Promise<OnboardingActionState> {
+export async function completeOnboarding(flowId: string, data: Record<string, unknown>): Promise<OnboardingActionState> {
   const user = await requireClientUser();
-  const parsed = onboardingSchema.safeParse(data);
-  if (!parsed.success) return { error: "Please review the form and try again." };
-
-  const missing = requiredForCompletion.filter((f) => !String(parsed.data[f] ?? "").trim());
+  const sanitized = sanitize(data);
+  const steps = await getFlowSteps(flowId);
+  const requiredFields = steps.flatMap((step) => step.fields).filter((field) => field.required);
+  const missing = requiredFields.filter((field) => (field.type === "checkbox" ? sanitized[field.key] !== true : !String(sanitized[field.key] ?? "").trim()));
   if (missing.length > 0) return { error: "Please complete all required fields before submitting." };
-  if (!parsed.data.acceptedTerms) return { error: "You must confirm the information is accurate." };
 
   const now = new Date();
 
@@ -53,13 +65,14 @@ export async function completeOnboarding(data: Record<string, unknown>): Promise
     .insert(onboardingSubmissions)
     .values({
       clientAccountId: user.clientAccountId,
-      data: parsed.data,
-      currentStep: 5,
+      onboardingFlowId: flowId || null,
+      data: sanitized,
+      currentStep: Math.max(steps.length - 1, 0),
       completedAt: now,
     })
     .onConflictDoUpdate({
       target: onboardingSubmissions.clientAccountId,
-      set: { data: parsed.data, completedAt: now, updatedAt: now },
+      set: { data: sanitized, onboardingFlowId: flowId || null, completedAt: now, updatedAt: now },
     });
 
   await db
@@ -78,3 +91,4 @@ export async function completeOnboarding(data: Record<string, unknown>): Promise
   revalidatePath("/portal");
   return { ok: true };
 }
+

@@ -11,31 +11,33 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { onboardingSteps, type OnboardingData, type OnboardingField } from "@/lib/onboarding";
+import type { OnboardingFlowField, OnboardingFlowStep } from "@/lib/onboarding-flow";
 import { completeOnboarding, saveOnboardingStep } from "./actions";
 
 type Props = {
-  initialData: Partial<OnboardingData>;
+  flowId: string;
+  steps: OnboardingFlowStep[];
+  initialData: Record<string, unknown>;
   initialStep: number;
 };
 
-export function OnboardingWizard({ initialData, initialStep }: Props) {
+export function OnboardingWizard({ flowId, steps, initialData, initialStep }: Props) {
   const router = useRouter();
-  const [step, setStep] = useState(Math.min(initialStep, onboardingSteps.length - 1));
+  const [step, setStep] = useState(Math.min(initialStep, Math.max(steps.length - 1, 0)));
   const [values, setValues] = useState<Record<string, unknown>>({ ...initialData });
   const [pending, startTransition] = useTransition();
 
-  const current = onboardingSteps[step];
-  const isLast = step === onboardingSteps.length - 1;
-  const progress = Math.round(((step + 1) / onboardingSteps.length) * 100);
+  const current = steps[step];
+  const isLast = step === steps.length - 1;
+  const progress = steps.length > 0 ? Math.round(((step + 1) / steps.length) * 100) : 0;
 
   const missingRequired = useMemo(
-    () => current.fields.filter((f) => f.required && !valueFilled(values[f.name], f.type)),
-    [current.fields, values],
+    () => (current ? current.fields.filter((f) => f.required && !valueFilled(values[f.key], f.type)) : []),
+    [current, values],
   );
 
-  function setField(name: string, value: unknown) {
-    setValues((v) => ({ ...v, [name]: value }));
+  function setField(key: string, value: unknown) {
+    setValues((v) => ({ ...v, [key]: value }));
   }
 
   function next() {
@@ -44,13 +46,13 @@ export function OnboardingWizard({ initialData, initialStep }: Props) {
       return;
     }
     startTransition(async () => {
-      const res = await saveOnboardingStep(values, Math.min(step + 1, onboardingSteps.length - 1));
+      const res = await saveOnboardingStep(flowId, values, Math.min(step + 1, Math.max(steps.length - 1, 0)));
       if (res.error) {
         toast.error(res.error);
         return;
       }
       if (isLast) {
-        const done = await completeOnboarding(values);
+        const done = await completeOnboarding(flowId, values);
         if (done.error) {
           toast.error(done.error);
           return;
@@ -67,9 +69,17 @@ export function OnboardingWizard({ initialData, initialStep }: Props) {
   function back() {
     if (step === 0) return;
     startTransition(async () => {
-      await saveOnboardingStep(values, step - 1);
+      await saveOnboardingStep(flowId, values, step - 1);
       setStep((s) => s - 1);
     });
+  }
+
+  if (!current) {
+    return (
+      <Card className="w-full max-w-2xl">
+        <CardContent className="pt-6 text-sm text-muted-foreground">Onboarding isn&apos;t configured yet. Please contact your account manager.</CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -77,7 +87,7 @@ export function OnboardingWizard({ initialData, initialStep }: Props) {
       <CardHeader className="space-y-3">
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <span>
-            Step {step + 1} of {onboardingSteps.length}
+            Step {step + 1} of {steps.length}
           </span>
           <span>{progress}%</span>
         </div>
@@ -87,7 +97,7 @@ export function OnboardingWizard({ initialData, initialStep }: Props) {
       </CardHeader>
       <CardContent className="space-y-4">
         {current.fields.map((field) => (
-          <Field key={field.name} field={field} value={values[field.name]} onChange={setField} />
+          <Field key={field.key} field={field} value={values[field.key]} onChange={setField} />
         ))}
       </CardContent>
       <CardFooter className="justify-between">
@@ -102,7 +112,7 @@ export function OnboardingWizard({ initialData, initialStep }: Props) {
   );
 }
 
-function valueFilled(value: unknown, type: OnboardingField["type"]) {
+function valueFilled(value: unknown, type: OnboardingFlowField["type"]) {
   if (type === "checkbox") return value === true;
   return String(value ?? "").trim().length > 0;
 }
@@ -112,11 +122,11 @@ function Field({
   value,
   onChange,
 }: {
-  field: OnboardingField;
+  field: OnboardingFlowField;
   value: unknown;
-  onChange: (name: string, value: unknown) => void;
+  onChange: (key: string, value: unknown) => void;
 }) {
-  const id = `field-${field.name}`;
+  const id = `field-${field.key}`;
   const label = (
     <Label htmlFor={id}>
       {field.label}
@@ -132,7 +142,7 @@ function Field({
           id={id}
           value={String(value ?? "")}
           placeholder={field.placeholder}
-          onChange={(e) => onChange(field.name, e.target.value)}
+          onChange={(e) => onChange(field.key, e.target.value)}
         />
         {field.help ? <p className="text-xs text-muted-foreground">{field.help}</p> : null}
       </div>
@@ -143,7 +153,7 @@ function Field({
     return (
       <div className="space-y-2">
         {label}
-        <Select value={String(value ?? "")} onValueChange={(v) => onChange(field.name, v)}>
+        <Select value={String(value ?? "")} onValueChange={(v) => onChange(field.key, v)}>
           <SelectTrigger id={id}>
             <SelectValue placeholder="Select…" />
           </SelectTrigger>
@@ -162,7 +172,7 @@ function Field({
   if (field.type === "checkbox") {
     return (
       <div className="flex items-center gap-2">
-        <Checkbox id={id} checked={value === true} onCheckedChange={(c) => onChange(field.name, c === true)} />
+        <Checkbox id={id} checked={value === true} onCheckedChange={(c) => onChange(field.key, c === true)} />
         {label}
       </div>
     );
@@ -176,7 +186,7 @@ function Field({
         type={field.type}
         value={String(value ?? "")}
         placeholder={field.placeholder}
-        onChange={(e) => onChange(field.name, e.target.value)}
+        onChange={(e) => onChange(field.key, e.target.value)}
       />
       {field.help ? <p className="text-xs text-muted-foreground">{field.help}</p> : null}
     </div>
