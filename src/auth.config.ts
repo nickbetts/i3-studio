@@ -38,6 +38,7 @@ export const authConfig = {
         pathname === "/reset-password" ||
         pathname === "/terms" ||
         pathname === "/privacy" ||
+        pathname === "/security" ||
         pathname === "/api/health" ||
         pathname === "/api/uploads" ||
         pathname.startsWith("/api/cron/") ||

@@ -6,6 +6,8 @@ export const metadata = { title: "Terms of Use · i3 Studio" };
 export default function TermsOfUsePage() {
   return (
     <div className="mx-auto w-full max-w-2xl flex-1 space-y-6 p-6">
+      <Link href="/" className="text-sm underline underline-offset-4">← Back to dashboard</Link>
+
       <div>
         <h1 className="text-2xl font-semibold">Terms of Use</h1>
         <p className="text-sm text-muted-foreground">Version {CURRENT_TERMS_VERSION} · Last updated 17 September 2026.</p>
@@ -139,7 +141,8 @@ export default function TermsOfUsePage() {
       </section>
 
       <p className="text-sm">
-        <Link href="/privacy" className="underline underline-offset-4">Privacy Policy</Link>
+        See also our <Link href="/privacy" className="underline underline-offset-4">Privacy Policy</Link> and{" "}
+        <Link href="/security" className="underline underline-offset-4">Data Security</Link>.
       </p>
     </div>
   );

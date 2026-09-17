@@ -30,6 +30,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <footer className="flex shrink-0 items-center justify-center gap-4 py-3 text-xs text-muted-foreground">
           <Link href="/privacy" className="hover:underline">Privacy Policy</Link>
           <Link href="/terms" className="hover:underline">Terms of Use</Link>
+          <Link href="/security" className="hover:underline">Data Security</Link>
         </footer>
         <Toaster richColors position="top-right" />
       </body>
