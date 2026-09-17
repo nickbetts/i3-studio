@@ -5,14 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { db } from "@/db";
-import { clientAccounts, clientTypes, tasks } from "@/db/schema";
+import { clientAccounts, clientTypes } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
-import { createClient, createTask } from "./actions";
-import { TaskStatus } from "./task-status";
+import { createClient } from "./actions";
 
 export default async function AgencyClientsPage() {
   await requireAgencyUser();
@@ -21,7 +19,6 @@ export default async function AgencyClientsPage() {
     db.query.users.findMany({ where: (user, { eq }) => eq(user.role, "account_manager") }),
     db.query.clientTypes.findMany({ where: (type, { eq }) => eq(type.archived, false), orderBy: asc(clientTypes.label) }),
   ]);
-  const openTasks = await db.select({ id: tasks.id, title: tasks.title, status: tasks.status, priority: tasks.priority, clientAccountId: tasks.clientAccountId, dueDate: tasks.dueDate }).from(tasks).orderBy(desc(tasks.createdAt));
 
   return (
     <div className="space-y-6">
@@ -47,25 +44,6 @@ export default async function AgencyClientsPage() {
           </CardContent>
         </Card>
       </div>
-      <Card>
-        <CardHeader><CardTitle className="text-base">Create a client task</CardTitle><CardDescription>Tasks appear in the client portal as outstanding items.</CardDescription></CardHeader>
-        <CardContent>
-          <form action={createTask} className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2"><Label htmlFor="task-client">Client</Label><Select name="clientAccountId" required><SelectTrigger id="task-client"><SelectValue placeholder="Choose a client" /></SelectTrigger><SelectContent>{clients.map((client) => <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-2"><Label htmlFor="task-title">Task title</Label><Input id="task-title" name="title" required /></div>
-            <div className="space-y-2 md:col-span-2"><Label htmlFor="task-description">Description</Label><Textarea id="task-description" name="description" /></div>
-            <div className="space-y-2"><Label htmlFor="task-priority">Priority</Label><Select name="priority" defaultValue="medium"><SelectTrigger id="task-priority"><SelectValue /></SelectTrigger><SelectContent>{["low", "medium", "high", "urgent"].map((priority) => <SelectItem key={priority} value={priority} className="capitalize">{priority}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-2"><Label htmlFor="task-due">Due date</Label><Input id="task-due" name="dueDate" type="date" /></div>
-            <div><Button type="submit">Create task</Button></div>
-          </form>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader><CardTitle className="text-base">Task queue</CardTitle></CardHeader>
-        <CardContent className="space-y-2">
-          {openTasks.length === 0 ? <p className="text-sm text-muted-foreground">No tasks created yet.</p> : openTasks.map((task) => <div key={task.id} className="flex flex-wrap items-center justify-between gap-3 border-b py-3 last:border-0"><div><p className="font-medium">{task.title}</p><p className="text-xs capitalize text-muted-foreground">{clients.find((client) => client.id === task.clientAccountId)?.name ?? "Unknown client"} · {task.priority}{task.dueDate ? ` · due ${task.dueDate.toLocaleDateString()}` : ""}</p></div><TaskStatus taskId={task.id} value={task.status} /></div>)}
-        </CardContent>
-      </Card>
     </div>
   );
 }

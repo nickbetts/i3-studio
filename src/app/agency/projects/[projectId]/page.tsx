@@ -23,7 +23,7 @@ export default async function AgencyProjectDetailPage({ params }: { params: Prom
   const { projectId } = await params;
   const project = await db.query.projects.findFirst({ where: eq(projects.id, projectId), with: { milestones: true } });
   if (!project) return <Card><CardContent className="pt-6">Project not found.</CardContent></Card>;
-  const [client, team, projectManagers, deliverables, designOptions, contentOptions, documentOptions] = await Promise.all([
+  const [client, team, projectManagers, deliverables, designOptions, contentOptions, documentOptions, projectTasks] = await Promise.all([
     db.query.clientAccounts.findFirst({ where: eq(clientAccounts.id, project.clientAccountId) }),
     db.query.users.findMany({ where: inArray(users.role, ["admin", "account_manager", "content_writer"]) }),
     db.select({ id: projectAccountManagerAssignments.id, userId: users.id, name: users.name, email: users.email }).from(projectAccountManagerAssignments).innerJoin(users, eq(projectAccountManagerAssignments.userId, users.id)).where(eq(projectAccountManagerAssignments.projectId, projectId)),
@@ -31,6 +31,7 @@ export default async function AgencyProjectDetailPage({ params }: { params: Prom
     db.query.designAssets.findMany({ where: eq(designAssets.clientAccountId, project.clientAccountId) }),
     db.query.contentItems.findMany({ where: eq(contentItems.clientAccountId, project.clientAccountId) }),
     db.query.documents.findMany({ where: eq(documents.clientAccountId, project.clientAccountId) }),
+    db.query.tasks.findMany({ where: (task, { and: andOp, eq: eqOp, inArray: inArrayOp }) => andOp(eqOp(task.projectId, projectId), inArrayOp(task.status, ["open", "in_progress", "blocked"])) }),
   ]);
   const milestones = [...project.milestones].sort((a, b) => a.sortOrder - b.sortOrder);
   const done = milestones.filter((milestone) => milestone.status === "done").length;
@@ -78,6 +79,22 @@ export default async function AgencyProjectDetailPage({ params }: { params: Prom
               <Button type="submit" size="sm" variant="outline">Add</Button>
             </form>
           ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div><CardTitle className="text-base">Tasks</CardTitle><CardDescription>Open work tied to this project.</CardDescription></div>
+            <Link href={`/agency/tasks?assignee=all&projectId=${project.id}`} className="text-xs underline-offset-4 hover:underline">View all</Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {projectTasks.length === 0 ? <p className="text-sm text-muted-foreground">No open tasks for this project.</p> : (
+            <div className="space-y-1">
+              {projectTasks.slice(0, 5).map((task) => <p key={task.id} className="text-sm">{task.title} <span className="text-xs capitalize text-muted-foreground">· {task.priority}</span></p>)}
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -2,17 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarClock, FileCheck2, FilePenLine, FolderKanban, Image, LayoutDashboard, LifeBuoy, LineChart, Paperclip, Settings, Users } from "lucide-react";
+import { CalendarClock, FileCheck2, FilePenLine, FolderKanban, Image, LayoutDashboard, LifeBuoy, LineChart, ListTodo, Paperclip, Settings, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type NavItem = {
   href: string;
   label: string;
-  icon: "calendar" | "files" | "projects" | "designs" | "dashboard" | "support" | "reports" | "clients" | "settings" | "reference" | "content";
+  icon: "calendar" | "files" | "projects" | "designs" | "dashboard" | "support" | "reports" | "clients" | "settings" | "reference" | "content" | "tasks";
   count?: number;
 };
 
-const icons = { calendar: CalendarClock, files: FileCheck2, projects: FolderKanban, designs: Image, dashboard: LayoutDashboard, support: LifeBuoy, reports: LineChart, clients: Users, settings: Settings, reference: Paperclip, content: FilePenLine };
+const icons = { calendar: CalendarClock, files: FileCheck2, projects: FolderKanban, designs: Image, dashboard: LayoutDashboard, support: LifeBuoy, reports: LineChart, clients: Users, settings: Settings, reference: Paperclip, content: FilePenLine, tasks: ListTodo };
 
 export function SidebarNav({ items }: { items: NavItem[] }) {
   const pathname = usePathname();

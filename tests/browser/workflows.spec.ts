@@ -4,7 +4,7 @@ import { del } from "@vercel/blob";
 import bcrypt from "bcryptjs";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../../src/db";
-import { organizations, users, clientAccounts, contentTemplates, contentItems, contentVersions, auditLogs, projects, designAssets, annotations, annotationComments, referenceFiles, projectTemplates } from "../../src/db/schema";
+import { organizations, users, clientAccounts, contentTemplates, contentItems, contentVersions, auditLogs, projects, designAssets, annotations, annotationComments, referenceFiles, projectTemplates, tasks } from "../../src/db/schema";
 
 const run = randomUUID();
 const organizationId = randomUUID();
@@ -48,6 +48,7 @@ test.afterAll(async () => {
   if (process.env.BLOB_PRIVATE_READ_WRITE_TOKEN) for (const upload of uploads) await del(upload.fileUrl, { token: process.env.BLOB_PRIVATE_READ_WRITE_TOKEN });
   await db.delete(referenceFiles).where(inArray(referenceFiles.id, uploads.map((upload) => upload.id)));
   await db.delete(projectTemplates).where(eq(projectTemplates.name, `E2E project template ${run}`));
+  await db.delete(tasks).where(eq(tasks.title, `E2E task ${run}`));
   const newClient = await db.query.clientAccounts.findFirst({ where: eq(clientAccounts.name, `E2E new client ${run}`) });
   if (newClient) await db.delete(clientAccounts).where(eq(clientAccounts.id, newClient.id));
   await db.delete(auditLogs).where(inArray(auditLogs.clientAccountId, [clientId, otherClientId]));
@@ -185,4 +186,30 @@ test("admin creates a client with a client type, manages AMs, and builds a proje
   await expect(page.getByText("Homepage design", { exact: true })).toBeVisible();
   await expect(page.getByText("Donation page design", { exact: true })).toBeVisible();
   await expect(page.locator('input[value="Discovery"]')).toBeVisible();
+});
+
+test("admin creates a task, filters by assignee, and reassigns it to themselves", async ({ page }) => {
+  const taskTitle = `E2E task ${run}`;
+  await login(page, "admin");
+  await page.goto("/agency/tasks");
+  await page.getByLabel("Client", { exact: true }).click();
+  await page.getByRole("option", { name: `E2E ${clientId}`, exact: true }).click();
+  await page.getByLabel("Task title", { exact: true }).fill(taskTitle);
+  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  await page.getByLabel("Due date", { exact: true }).fill(yesterday);
+  await page.getByRole("button", { name: "Create task", exact: true }).click();
+
+  await page.goto("/agency/tasks");
+  await expect(page.getByText(taskTitle, { exact: true })).toHaveCount(0);
+
+  await page.goto("/agency/tasks?assignee=all");
+  await expect(page.getByText(taskTitle, { exact: true })).toBeVisible();
+  await expect(page.getByText("Overdue", { exact: true })).toBeVisible();
+  const row = page.locator('[data-testid^="task-"]', { has: page.getByText(taskTitle, { exact: true }) }).first();
+  await row.getByLabel("Assignee", { exact: true }).click();
+  await page.getByRole("option", { name: "E2E admin", exact: true }).click();
+  await expect(page.getByText("Assignee updated")).toBeVisible();
+
+  await page.goto("/agency/tasks");
+  await expect(page.getByText(taskTitle, { exact: true })).toBeVisible();
 });

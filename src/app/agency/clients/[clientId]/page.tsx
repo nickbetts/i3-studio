@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
     db.select({ id: accountManagerAssignments.id, userId: users.id, name: users.name, email: users.email }).from(accountManagerAssignments).innerJoin(users, eq(accountManagerAssignments.userId, users.id)).where(eq(accountManagerAssignments.clientAccountId, clientId)),
     db.query.users.findMany({ where: eq(users.role, "account_manager") }),
     db.query.clientTypes.findMany({ where: eq(clientTypes.archived, false), orderBy: asc(clientTypes.label) }),
-    db.query.tasks.findMany({ where: and(eq(tasks.clientAccountId, clientId), eq(tasks.status, "open")) }),
+    db.query.tasks.findMany({ where: and(eq(tasks.clientAccountId, clientId), inArray(tasks.status, ["open", "in_progress", "blocked"])) }),
     db.query.referenceFiles.findMany({ where: eq(referenceFiles.clientAccountId, clientId), orderBy: desc(referenceFiles.createdAt) }),
     db.query.projects.findMany({ where: eq(projects.clientAccountId, clientId), orderBy: desc(projects.createdAt) }),
   ]);
@@ -105,7 +105,19 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
               ) : null}
             </div>
 
-            <div><p className="text-xs text-muted-foreground">Open tasks</p><p className="text-2xl font-semibold">{clientTasks.length}</p></div>
+            <div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">Open tasks</p>
+                <Link href={`/agency/tasks?assignee=all&clientId=${client.id}`} className="text-xs underline-offset-4 hover:underline">View all</Link>
+              </div>
+              {clientTasks.length === 0 ? <p className="text-sm text-muted-foreground">None outstanding.</p> : (
+                <div className="space-y-1">
+                  {clientTasks.slice(0, 5).map((task) => (
+                    <p key={task.id} className="text-sm">{task.title} <span className="text-xs capitalize text-muted-foreground">· {task.priority}</span></p>
+                  ))}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
