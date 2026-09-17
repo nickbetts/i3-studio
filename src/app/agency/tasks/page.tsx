@@ -9,9 +9,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { db } from "@/db";
-import { clientAccounts, projects, tasks, users } from "@/db/schema";
+import { clientAccounts, projects, savedTaskViews, tasks, users } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
-import { createTask } from "./actions";
+import { createTask, saveTaskView } from "./actions";
 import { TaskFilterSelect } from "./task-filter-select";
 import { TaskList, type TaskRow } from "./task-list";
 
@@ -55,11 +55,12 @@ export default async function AgencyTasksPage({ searchParams }: { searchParams: 
   const canManage = user.role === "admin" || user.role === "account_manager";
   const { assignee = "me", clientId = "", projectId = "", status = "open_items", priority = "all", sort = "due" } = await searchParams;
 
-  const [clients, team, allProjects, loggedTime] = await Promise.all([
+  const [clients, team, allProjects, loggedTime, savedViews] = await Promise.all([
     db.query.clientAccounts.findMany({ orderBy: asc(clientAccounts.name) }),
     db.query.users.findMany({ where: inArray(users.role, ["admin", "account_manager", "content_writer"]) }),
     db.query.projects.findMany({ orderBy: asc(projects.name) }),
     db.query.timeEntries.findMany({ columns: { taskId: true, durationSeconds: true } }),
+    db.query.savedTaskViews.findMany({ where: eq(savedTaskViews.userId, user.id), orderBy: (view, { asc }) => [asc(view.name)] }),
   ]);
   const timeByTask = new Map<string, number>();
   for (const entry of loggedTime) if (entry.taskId) timeByTask.set(entry.taskId, (timeByTask.get(entry.taskId) ?? 0) + entry.durationSeconds);
@@ -113,6 +114,7 @@ export default async function AgencyTasksPage({ searchParams }: { searchParams: 
               <div className="space-y-2 md:col-span-2"><Label htmlFor="task-description">Description</Label><Textarea id="task-description" name="description" /></div>
               <div className="space-y-2"><Label htmlFor="task-priority">Priority</Label><Select name="priority" defaultValue="medium"><SelectTrigger id="task-priority"><SelectValue /></SelectTrigger><SelectContent>{["low", "medium", "high", "urgent"].map((p) => <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-2"><Label htmlFor="task-due">Due date</Label><Input id="task-due" name="dueDate" type="date" /></div>
+              <div className="space-y-2"><Label htmlFor="task-recurrence">Repeat</Label><Select name="recurrenceRule"><SelectTrigger id="task-recurrence"><SelectValue placeholder="Does not repeat" /></SelectTrigger><SelectContent><SelectItem value="daily">Daily</SelectItem><SelectItem value="weekly">Weekly</SelectItem><SelectItem value="monthly">Monthly</SelectItem></SelectContent></Select></div>
               <div><Button type="submit">Create task</Button></div>
             </form>
           </CardContent>
@@ -124,12 +126,14 @@ export default async function AgencyTasksPage({ searchParams }: { searchParams: 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div><CardTitle className="text-base">Task queue</CardTitle><CardDescription>{rows.length} matching task{rows.length === 1 ? "" : "s"}.</CardDescription></div>
             <div className="flex flex-wrap gap-2">
+              {savedViews.map((view) => { const filters = view.filters as Record<string, string>; const query = new URLSearchParams(filters).toString(); return <a key={view.id} href={`/agency/tasks?${query}`} className="inline-flex h-9 items-center rounded-md border px-3 text-sm hover:bg-muted">{view.name}</a>; })}
               <TaskFilterSelect paramKey="assignee" placeholder="My tasks" options={[{ value: "me", label: "My tasks" }, { value: "all", label: "All tasks" }]} />
               <TaskFilterSelect paramKey="clientId" placeholder="All clients" options={[{ value: "", label: "All clients" }, ...clients.map((client) => ({ value: client.id, label: client.name }))]} />
               <TaskFilterSelect paramKey="projectId" placeholder="All projects" options={[{ value: "", label: "All projects" }, ...allProjects.map((project) => ({ value: project.id, label: project.name }))]} />
               <TaskFilterSelect paramKey="status" placeholder="Open (not done)" options={STATUS_OPTIONS} />
               <TaskFilterSelect paramKey="priority" placeholder="All priorities" options={PRIORITY_OPTIONS} />
               <TaskFilterSelect paramKey="sort" placeholder="Sort: due date" options={SORT_OPTIONS} />
+              <form action={saveTaskView} className="flex gap-1"><Input name="name" placeholder="Save view as…" className="h-9 w-32" /><input type="hidden" name="filters" value={JSON.stringify({ assignee, clientId, projectId, status, priority, sort })} /><Button type="submit" size="sm" variant="outline">Save view</Button></form>
             </div>
           </div>
         </CardHeader>

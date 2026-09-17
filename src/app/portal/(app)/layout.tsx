@@ -36,6 +36,7 @@ export default async function PortalAppLayout({ children }: { children: ReactNod
   const visibleTabs = Array.isArray(account?.visibleTabs) ? account.visibleTabs : navItems.map((item) => item.icon);
   const visibleItems = navItems.filter((item) => visibleTabs.includes(item.icon));
   visibleItems.push({ href: "/portal/files", label: "Files", icon: "reference" });
+  visibleItems.push({ href: "/portal/time", label: "Time", icon: "reports" });
 
   return (
     <AppShell

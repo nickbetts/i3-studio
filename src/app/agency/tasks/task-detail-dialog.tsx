@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { prepareUpload } from "@/lib/upload-client";
-import { addTaskComment, deleteTaskComment, getTaskDetail, updateTaskDetails, type TaskDetail } from "./actions";
+import { addTaskComment, addTaskDependency, createSubtask, deleteTaskComment, getTaskDetail, updateChecklist, updateTaskDetails, type TaskDetail } from "./actions";
 
 export function TaskDetailDialog({ taskId, title, currentUserId, canEdit }: { taskId: string; title: string; currentUserId: string; canEdit: boolean }) {
   const [open, setOpen] = useState(false);
@@ -18,6 +18,9 @@ export function TaskDetailDialog({ taskId, title, currentUserId, canEdit }: { ta
   const [loading, setLoading] = useState(false);
   const [comment, setComment] = useState("");
   const [commentFile, setCommentFile] = useState<File | null>(null);
+  const [subtaskTitle, setSubtaskTitle] = useState("");
+  const [checklistLabel, setChecklistLabel] = useState("");
+  const [dependencyId, setDependencyId] = useState("");
   const [pending, start] = useTransition();
 
   useEffect(() => {
@@ -33,7 +36,7 @@ export function TaskDetailDialog({ taskId, title, currentUserId, canEdit }: { ta
   function save() {
     if (!detail) return;
     start(async () => {
-      await updateTaskDetails(taskId, { title: detail.title, description: detail.description ?? "", priority: detail.priority, dueDate: detail.dueDate ?? "" });
+      await updateTaskDetails(taskId, { title: detail.title, description: detail.description ?? "", priority: detail.priority, dueDate: detail.dueDate ?? "", recurrenceRule: detail.recurrenceRule });
       toast.success("Task saved");
     });
   }
@@ -96,6 +99,36 @@ export function TaskDetailDialog({ taskId, title, currentUserId, canEdit }: { ta
                 </div>
               </div>
               {canEdit ? <Button size="sm" variant="outline" onClick={save} disabled={pending}>Save changes</Button> : null}
+
+              <div className="grid gap-4 border-t pt-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Repeat</Label>
+                  <Select value={detail.recurrenceRule ?? "none"} disabled={!canEdit} onValueChange={(value) => setDetail({ ...detail, recurrenceRule: value === "none" ? null : value as TaskDetail["recurrenceRule"] })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="none">Does not repeat</SelectItem><SelectItem value="daily">Daily</SelectItem><SelectItem value="weekly">Weekly</SelectItem><SelectItem value="monthly">Monthly</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2"><Label>Activity</Label><div className="max-h-24 overflow-y-auto text-xs text-muted-foreground">{detail.activities.length === 0 ? "No activity yet." : detail.activities.slice(0, 4).map((item) => <p key={item.id}>{item.actorName ?? "Someone"} {item.action.replaceAll("_", " ")}</p>)}</div></div>
+              </div>
+              {canEdit ? <Button size="sm" variant="outline" onClick={save} disabled={pending}>Save recurrence</Button> : null}
+
+              <div className="space-y-2 border-t pt-4">
+                <Label>Checklist</Label>
+                {detail.checklist.map((item) => <label key={item.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={item.done} onChange={(event) => { const checklist = detail.checklist.map((entry) => entry.id === item.id ? { ...entry, done: event.target.checked } : entry); setDetail({ ...detail, checklist }); updateChecklist(taskId, checklist); }} /> <span className={item.done ? "text-muted-foreground line-through" : ""}>{item.label}</span></label>)}
+                <div className="flex gap-2"><Input value={checklistLabel} onChange={(event) => setChecklistLabel(event.target.value)} placeholder="Add checklist item" /><Button size="sm" variant="outline" onClick={() => { if (!checklistLabel.trim()) return; const checklist = [...detail.checklist, { id: crypto.randomUUID(), label: checklistLabel.trim(), done: false }]; setDetail({ ...detail, checklist }); setChecklistLabel(""); updateChecklist(taskId, checklist); }}>Add</Button></div>
+              </div>
+
+              <div className="space-y-2 border-t pt-4">
+                <Label>Subtasks</Label>
+                {detail.subtasks.map((item) => <p key={item.id} className="text-sm">{item.title} <span className="text-xs capitalize text-muted-foreground">({item.status.replace("_", " ")})</span></p>)}
+                <div className="flex gap-2"><Input value={subtaskTitle} onChange={(event) => setSubtaskTitle(event.target.value)} placeholder="Add subtask" /><Button size="sm" variant="outline" onClick={async () => { if (!subtaskTitle.trim()) return; await createSubtask(taskId, subtaskTitle); setSubtaskTitle(""); const refreshed = await getTaskDetail(taskId); setDetail(refreshed); }}>Add</Button></div>
+              </div>
+
+              <div className="space-y-2 border-t pt-4">
+                <Label>Dependencies</Label>
+                {detail.dependencies.map((item) => <p key={item.id} className="text-sm">Blocked by: {item.title} <span className="text-xs capitalize text-muted-foreground">({item.status.replace("_", " ")})</span></p>)}
+                <div className="flex gap-2"><Input value={dependencyId} onChange={(event) => setDependencyId(event.target.value)} placeholder="Paste task ID to link" /><Button size="sm" variant="outline" onClick={async () => { if (!dependencyId.trim()) return; await addTaskDependency(taskId, dependencyId.trim()); setDependencyId(""); const refreshed = await getTaskDetail(taskId); setDetail(refreshed); }}>Link</Button></div>
+              </div>
 
               <div className="space-y-3 border-t pt-4">
                 <Label>Comments</Label>

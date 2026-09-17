@@ -296,6 +296,7 @@ export const tasks = pgTable(
       .notNull()
       .references(() => clientAccounts.id, { onDelete: "cascade" }),
     projectId: text("project_id").references(() => projects.id, { onDelete: "cascade" }),
+    parentTaskId: text("parent_task_id"),
     title: text("title").notNull(),
     description: text("description"),
     status: taskStatus("status").notNull().default("open"),
@@ -303,10 +304,60 @@ export const tasks = pgTable(
     assignedToUserId: text("assigned_to_user_id").references(() => users.id, { onDelete: "set null" }),
     createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
     dueDate: timestamp("due_date", { mode: "date" }),
+    recurrenceRule: text("recurrence_rule"),
+    recurrenceNextDate: timestamp("recurrence_next_date", { mode: "date" }),
+    checklist: jsonb("checklist").notNull().default([]),
     createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
   },
-  (t) => [index("task_client_idx").on(t.clientAccountId), index("task_project_idx").on(t.projectId)],
+  (t) => [index("task_client_idx").on(t.clientAccountId), index("task_project_idx").on(t.projectId), index("task_parent_idx").on(t.parentTaskId)],
+);
+
+export const taskDependencies = pgTable(
+  "task_dependency",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    taskId: text("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+    dependsOnTaskId: text("depends_on_task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+    createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("task_dependency_unique_idx").on(t.taskId, t.dependsOnTaskId), index("task_dependency_task_idx").on(t.taskId)],
+);
+
+export const taskDependenciesRelations = relations(taskDependencies, ({ one }) => ({
+  task: one(tasks, { fields: [taskDependencies.taskId], references: [tasks.id], relationName: "taskDependencies" }),
+  dependsOnTask: one(tasks, { fields: [taskDependencies.dependsOnTaskId], references: [tasks.id], relationName: "dependsOnTask" }),
+}));
+
+export const taskActivities = pgTable(
+  "task_activity",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    taskId: text("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+    actorUserId: text("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    action: text("action").notNull(),
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("task_activity_task_idx").on(t.taskId, t.createdAt)],
+);
+
+export const taskActivitiesRelations = relations(taskActivities, ({ one }) => ({
+  task: one(tasks, { fields: [taskActivities.taskId], references: [tasks.id] }),
+  actor: one(users, { fields: [taskActivities.actorUserId], references: [users.id] }),
+}));
+
+export const savedTaskViews = pgTable(
+  "saved_task_view",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    filters: jsonb("filters").notNull().default({}),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("saved_task_view_user_name_idx").on(t.userId, t.name)],
 );
 
 export const taskComments = pgTable(
