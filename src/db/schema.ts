@@ -103,6 +103,17 @@ export const organizations = pgTable("organization", {
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 
+// Admin-managed lookup so new client types don't require a code change.
+export const clientTypes = pgTable("client_type", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  key: text("key").notNull().unique(),
+  label: text("label").notNull(),
+  archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
 export const clientAccounts = pgTable(
   "client_account",
   {
@@ -112,6 +123,7 @@ export const clientAccounts = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
+    clientTypeId: text("client_type_id").references(() => clientTypes.id, { onDelete: "set null" }),
     name: text("name").notNull(),
     slug: text("slug").notNull(),
     status: clientStatus("status").notNull().default("onboarding"),
@@ -139,6 +151,48 @@ export const accountManagerAssignments = pgTable(
   (t) => [uniqueIndex("assignment_unique_idx").on(t.clientAccountId, t.userId)],
 );
 
+// Reusable milestone + required-deliverable checklist for a project type; replaces the
+// hardcoded template map so admins can add/edit project types without a code change.
+export const projectTemplates = pgTable(
+  "project_template",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    name: text("name").notNull(),
+    clientTypeId: text("client_type_id").references(() => clientTypes.id, { onDelete: "set null" }),
+    // Array of { title, defaultOffsetDays? }
+    milestones: jsonb("milestones").notNull().default([]),
+    // Array of { type: 'design' | 'content' | 'document', title, description, standard }
+    deliverables: jsonb("deliverables").notNull().default([]),
+    archived: boolean("archived").notNull().default(false),
+    createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("project_template_name_idx").on(t.name)],
+);
+
+// Admin-built onboarding question flow; steps hold the same field shape as content templates.
+export const onboardingFlows = pgTable(
+  "onboarding_flow",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    name: text("name").notNull(),
+    // Null clientTypeId marks the default/fallback flow used when a client type has none of its own.
+    clientTypeId: text("client_type_id").references(() => clientTypes.id, { onDelete: "set null" }),
+    // Array of { title, description, fields: OnboardingFlowField[] }
+    steps: jsonb("steps").notNull().default([]),
+    archived: boolean("archived").notNull().default(false),
+    createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("onboarding_flow_name_idx").on(t.name)],
+);
+
 export const onboardingSubmissions = pgTable("onboarding_submission", {
   id: text("id")
     .primaryKey()
@@ -147,6 +201,7 @@ export const onboardingSubmissions = pgTable("onboarding_submission", {
     .notNull()
     .references(() => clientAccounts.id, { onDelete: "cascade" })
     .unique(),
+  onboardingFlowId: text("onboarding_flow_id").references(() => onboardingFlows.id, { onDelete: "set null" }),
   data: jsonb("data").notNull().default({}),
   currentStep: integer("current_step").notNull().default(0),
   completedAt: timestamp("completed_at", { mode: "date" }),
@@ -158,6 +213,7 @@ export const projects = pgTable(
   {
     id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
     clientAccountId: text("client_account_id").notNull().references(() => clientAccounts.id, { onDelete: "cascade" }),
+    projectTemplateId: text("project_template_id").references(() => projectTemplates.id, { onDelete: "set null" }),
     name: text("name").notNull(),
     projectType: text("project_type").notNull().default("brochure_site"),
     status: text("status").notNull().default("active"),
@@ -171,9 +227,27 @@ export const projectMilestones = pgTable("project_milestone", {
   projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   status: taskStatus("status").notNull().default("open"),
+  assignedToUserId: text("assigned_to_user_id").references(() => users.id, { onDelete: "set null" }),
   dueDate: timestamp("due_date", { mode: "date" }),
   sortOrder: integer("sort_order").notNull().default(0),
 });
+
+export const projectAccountManagerAssignments = pgTable(
+  "project_account_manager_assignment",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("project_assignment_unique_idx").on(t.projectId, t.userId)],
+);
 
 export const contentSubmissions = pgTable("content_submission", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -219,6 +293,7 @@ export const tasks = pgTable(
     clientAccountId: text("client_account_id")
       .notNull()
       .references(() => clientAccounts.id, { onDelete: "cascade" }),
+    projectId: text("project_id").references(() => projects.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     description: text("description"),
     status: taskStatus("status").notNull().default("open"),
@@ -229,7 +304,7 @@ export const tasks = pgTable(
     createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
   },
-  (t) => [index("task_client_idx").on(t.clientAccountId)],
+  (t) => [index("task_client_idx").on(t.clientAccountId), index("task_project_idx").on(t.projectId)],
 );
 
 // ---------------------------------------------------------------------------
@@ -460,6 +535,25 @@ export const annotationComments = pgTable("annotation_comment", {
   body: text("body").notNull(),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
+
+// Tracks the standard/optional deliverables a project template expects, linked to the
+// actual design/content/document item once the team creates it.
+export const projectDeliverables = pgTable(
+  "project_deliverable",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    standard: boolean("standard").notNull().default(true),
+    designAssetId: text("design_asset_id").references(() => designAssets.id, { onDelete: "set null" }),
+    contentItemId: text("content_item_id").references(() => contentItems.id, { onDelete: "set null" }),
+    documentId: text("document_id").references(() => documents.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("project_deliverable_project_idx").on(t.projectId)],
+);
 
 // ---------------------------------------------------------------------------
 // Support ticketing
