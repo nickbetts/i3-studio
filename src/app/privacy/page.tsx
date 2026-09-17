@@ -25,7 +25,7 @@ export default function PrivacyPolicyPage() {
         </p>
         <p className="text-sm text-muted-foreground">
           This policy applies to the i3 Studio agency and client portal platform (the &ldquo;Platform&rdquo;) and to
-          anyone with an account on it &mdash; agency staff and client users alike.
+          anyone with an account on it, whether agency staff or client users.
         </p>
       </section>
 
@@ -56,10 +56,10 @@ export default function PrivacyPolicyPage() {
       <section className="space-y-2">
         <h2 className="text-lg font-medium">4. Why we process it and our legal basis</h2>
         <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-          <li><span className="text-foreground">Performance of a contract</span> &mdash; to provide the agency services you have engaged us for: managing your projects, content, designs, documents, tasks, and support requests.</li>
-          <li><span className="text-foreground">Legitimate interests</span> &mdash; to keep the Platform secure (e.g. rate-limiting, audit logging, fraud/abuse prevention), and to maintain an accurate record of approvals and account activity.</li>
-          <li><span className="text-foreground">Legal obligation</span> &mdash; where we need to retain records for accounting, tax, or regulatory purposes, or respond to a lawful request from a regulator or court.</li>
-          <li><span className="text-foreground">Consent</span> &mdash; only where we ask for it specifically (for example, optional preferences you choose to share); you may withdraw this at any time.</li>
+          <li><span className="text-foreground">Performance of a contract:</span> to provide the agency services you have engaged us for, including managing your projects, content, designs, documents, tasks, and support requests.</li>
+          <li><span className="text-foreground">Legitimate interests:</span> to keep the Platform secure (for example, rate-limiting, audit logging, and fraud/abuse prevention), and to maintain an accurate record of approvals and account activity.</li>
+          <li><span className="text-foreground">Legal obligation:</span> where we need to retain records for accounting, tax, or regulatory purposes, or respond to a lawful request from a regulator or court.</li>
+          <li><span className="text-foreground">Consent:</span> only where we ask for it specifically (for example, optional preferences you choose to share). You may withdraw this at any time.</li>
         </ul>
         <p className="text-sm text-muted-foreground">
           Providing account and onboarding information is necessary for us to deliver the service; without it we cannot
@@ -74,9 +74,9 @@ export default function PrivacyPolicyPage() {
           only to the extent needed to provide their service to us:
         </p>
         <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-          <li><span className="text-foreground">Vercel Inc.</span> &mdash; application hosting and file storage (Vercel Blob).</li>
-          <li><span className="text-foreground">Neon Inc.</span> &mdash; managed Postgres database hosting.</li>
-          <li><span className="text-foreground">Mailgun (Sinch)</span> &mdash; sending and receiving transactional and support email.</li>
+          <li><span className="text-foreground">Vercel Inc.:</span> application hosting and file storage (Vercel Blob).</li>
+          <li><span className="text-foreground">Neon Inc.:</span> managed Postgres database hosting.</li>
+          <li><span className="text-foreground">Mailgun (Sinch):</span> sending and receiving transactional and support email.</li>
         </ul>
         <p className="text-sm text-muted-foreground">
           Within your own organisation, your data is visible to i3 Studio staff who need it to deliver your services, and
@@ -114,7 +114,7 @@ export default function PrivacyPolicyPage() {
           <li>ask us to restrict or object to processing in certain circumstances;</li>
           <li>ask us to provide your data in a portable format;</li>
           <li>withdraw consent at any time, where processing is based on consent; and</li>
-          <li>lodge a complaint with a supervisory authority &mdash; in the UK, the Information Commissioner&apos;s Office (<a href="https://ico.org.uk" className="underline underline-offset-4" target="_blank" rel="noreferrer">ico.org.uk</a>).</li>
+          <li>lodge a complaint with a supervisory authority. In the UK, this is the Information Commissioner&apos;s Office (<a href="https://ico.org.uk" className="underline underline-offset-4" target="_blank" rel="noreferrer">ico.org.uk</a>).</li>
         </ul>
         <p className="text-sm text-muted-foreground">
           To exercise any of these rights, contact your account manager or email{" "}

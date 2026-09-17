@@ -13,9 +13,17 @@ export default function DataSecurityPage() {
       </div>
 
       <section className="space-y-2">
+        <p className="text-sm text-muted-foreground">
+          We take the security of your data extremely seriously. The Platform is built following current security best
+          practices, and we actively monitor for new and emerging threats to our dependencies and infrastructure so that
+          issues are identified and patched quickly, not just at launch.
+        </p>
+      </section>
+
+      <section className="space-y-2">
         <h2 className="text-lg font-medium">Your login</h2>
         <p className="text-sm text-muted-foreground">
-          Passwords are never stored in readable form &mdash; they&apos;re hashed with bcrypt, a one-way algorithm designed
+          Passwords are never stored in readable form. They&apos;re hashed with bcrypt, a one-way algorithm designed
           specifically to resist cracking, so even we can&apos;t see your actual password. Login attempts are rate-limited
           per account and per IP address, so automated bots can&apos;t simply guess passwords by brute force. If you change
           your password, every existing session is automatically signed out.
@@ -26,9 +34,9 @@ export default function DataSecurityPage() {
         <h2 className="text-lg font-medium">Who can see what</h2>
         <p className="text-sm text-muted-foreground">
           Every request is checked against your account, role, and organisation. A client user can only ever see their own
-          organisation&apos;s projects, files, and conversations &mdash; there is no way to browse another client&apos;s
-          data by guessing a link or changing an ID in the URL. Agency staff access is similarly scoped by role, and admin
-          actions like impersonating a preview account are logged and restricted.
+          organisation&apos;s projects, files, and conversations. There is no way to browse another client&apos;s data by
+          guessing a link or changing an ID in the URL. Agency staff access is similarly scoped by role, and admin actions
+          like impersonating a preview account are logged and restricted.
         </p>
       </section>
 
@@ -53,8 +61,8 @@ export default function DataSecurityPage() {
       <section className="space-y-2">
         <h2 className="text-lg font-medium">Browser-level protections</h2>
         <p className="text-sm text-muted-foreground">
-          We set standard security headers on every page &mdash; a Content Security Policy, clickjacking protection
-          (X-Frame-Options), MIME-sniffing protection, and strict transport security (HSTS) &mdash; to reduce the risk of
+          We set standard security headers on every page, including a Content Security Policy, clickjacking protection
+          (X-Frame-Options), MIME-sniffing protection, and strict transport security (HSTS), to reduce the risk of
           malicious scripts, embedded frames, or downgraded connections.
         </p>
       </section>
@@ -62,17 +70,19 @@ export default function DataSecurityPage() {
       <section className="space-y-2">
         <h2 className="text-lg font-medium">Keeping a record</h2>
         <p className="text-sm text-muted-foreground">
-          Actions that matter &mdash; approvals, file uploads and downloads, account changes, sign-ins &mdash; are written
+          Actions that matter, including approvals, file uploads and downloads, account changes, and sign-ins, are written
           to an audit log we can review if something looks wrong. Suspicious activity (like repeated failed logins or
           unusual download volumes) is throttled automatically.
         </p>
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-lg font-medium">Keeping the platform itself healthy</h2>
+        <h2 className="text-lg font-medium">Staying ahead of new threats</h2>
         <p className="text-sm text-muted-foreground">
-          We keep our software dependencies patched and monitor for known vulnerabilities in the libraries the platform
-          is built on. Server-side errors are logged so problems can be caught and fixed quickly.
+          Security isn&apos;t a one-off checklist for us. We keep our software dependencies patched, monitor for newly
+          disclosed vulnerabilities in the libraries the Platform is built on, and review our defences as new attack
+          techniques emerge, so protections stay current rather than going stale. Server-side errors are logged so
+          problems can be caught and fixed quickly.
         </p>
       </section>
 
