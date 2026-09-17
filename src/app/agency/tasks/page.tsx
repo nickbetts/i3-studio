@@ -55,11 +55,14 @@ export default async function AgencyTasksPage({ searchParams }: { searchParams: 
   const canManage = user.role === "admin" || user.role === "account_manager";
   const { assignee = "me", clientId = "", projectId = "", status = "open_items", priority = "all", sort = "due" } = await searchParams;
 
-  const [clients, team, allProjects] = await Promise.all([
+  const [clients, team, allProjects, loggedTime] = await Promise.all([
     db.query.clientAccounts.findMany({ orderBy: asc(clientAccounts.name) }),
     db.query.users.findMany({ where: inArray(users.role, ["admin", "account_manager", "content_writer"]) }),
     db.query.projects.findMany({ orderBy: asc(projects.name) }),
+    db.query.timeEntries.findMany({ columns: { taskId: true, durationSeconds: true } }),
   ]);
+  const timeByTask = new Map<string, number>();
+  for (const entry of loggedTime) if (entry.taskId) timeByTask.set(entry.taskId, (timeByTask.get(entry.taskId) ?? 0) + entry.durationSeconds);
   const clientName = (id: string) => clients.find((client) => client.id === id)?.name ?? "Unknown client";
   const projectName = (id: string | null) => (id ? (allProjects.find((project) => project.id === id)?.name ?? "Unknown project") : null);
 
@@ -86,6 +89,7 @@ export default async function AgencyTasksPage({ searchParams }: { searchParams: 
     priority: task.priority,
     status: task.status,
     assignedToUserId: task.assignedToUserId,
+    timeSeconds: timeByTask.get(task.id) ?? 0,
     dueLabel: dueLabel(task.dueDate, task.status),
   }));
 

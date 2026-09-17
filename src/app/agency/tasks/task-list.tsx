@@ -18,10 +18,18 @@ export type TaskRow = {
   priority: "low" | "medium" | "high" | "urgent";
   status: "open" | "in_progress" | "blocked" | "done";
   assignedToUserId: string | null;
+  timeSeconds: number;
   dueLabel: "overdue" | "soon" | null;
 };
 
 type Member = { id: string; name: string | null; email: string };
+
+function formatTime(seconds: number) {
+  if (seconds < 60) return `${seconds}s`;
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.round((seconds % 3600) / 60);
+  return hours > 0 ? `${hours}h ${String(minutes).padStart(2, "0")}m` : `${minutes}m`;
+}
 
 export function TaskList({ rows, team, currentUserId, canManage }: { rows: TaskRow[]; team: Member[]; currentUserId: string; canManage: boolean }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -91,6 +99,7 @@ export function TaskList({ rows, team, currentUserId, canManage }: { rows: TaskR
             <div className="flex items-center gap-2">
               {task.dueLabel === "overdue" ? <Badge variant="destructive">Overdue</Badge> : null}
               {task.dueLabel === "soon" ? <Badge className="bg-amber-500 text-white dark:bg-amber-600">Due soon</Badge> : null}
+              {task.timeSeconds > 0 ? <Badge variant="outline" className="font-mono">{formatTime(task.timeSeconds)}</Badge> : null}
               {canManage ? <TaskAssignee taskId={task.id} assignedToUserId={task.assignedToUserId} team={team} /> : null}
               {canEditTask ? <TaskStatus taskId={task.id} value={task.status} /> : <Badge variant="outline" className="capitalize">{task.status.replace("_", " ")}</Badge>}
             </div>

@@ -330,6 +330,71 @@ export const taskCommentsRelations = relations(taskComments, ({ one }) => ({
   author: one(users, { fields: [taskComments.authorUserId], references: [users.id] }),
 }));
 
+export const timeEntries = pgTable(
+  "time_entry",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    clientAccountId: text("client_account_id")
+      .notNull()
+      .references(() => clientAccounts.id, { onDelete: "cascade" }),
+    projectId: text("project_id").references(() => projects.id, { onDelete: "set null" }),
+    taskId: text("task_id").references(() => tasks.id, { onDelete: "set null" }),
+    startedAt: timestamp("started_at", { mode: "date" }).notNull(),
+    stoppedAt: timestamp("stopped_at", { mode: "date" }).notNull(),
+    durationSeconds: integer("duration_seconds").notNull(),
+    note: text("note"),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("time_entry_client_idx").on(t.clientAccountId),
+    index("time_entry_task_idx").on(t.taskId),
+    index("time_entry_user_started_idx").on(t.userId, t.startedAt),
+  ],
+);
+
+export const activeTimers = pgTable(
+  "active_timer",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    clientAccountId: text("client_account_id")
+      .notNull()
+      .references(() => clientAccounts.id, { onDelete: "cascade" }),
+    projectId: text("project_id").references(() => projects.id, { onDelete: "set null" }),
+    taskId: text("task_id").references(() => tasks.id, { onDelete: "set null" }),
+    startedAt: timestamp("started_at", { mode: "date" }).notNull().defaultNow(),
+    note: text("note"),
+  },
+  (t) => [uniqueIndex("active_timer_user_idx").on(t.userId)],
+);
+
+export const clientTimeBudgets = pgTable(
+  "client_time_budget",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    clientAccountId: text("client_account_id")
+      .notNull()
+      .references(() => clientAccounts.id, { onDelete: "cascade" }),
+    periodStart: timestamp("period_start", { mode: "date" }).notNull(),
+    periodEnd: timestamp("period_end", { mode: "date" }).notNull(),
+    allocatedSeconds: integer("allocated_seconds").notNull(),
+    createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("client_time_budget_period_idx").on(t.clientAccountId, t.periodStart)],
+);
+
 // ---------------------------------------------------------------------------
 // Documents + approvals
 // ---------------------------------------------------------------------------
