@@ -1,4 +1,5 @@
 import { desc } from "drizzle-orm";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,7 +26,18 @@ export default async function AgencySettingsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Admin settings" description="Manage teammates, client users, permissions and previews." />
+      <PageHeader
+        title="Admin settings"
+        description="Manage teammates, client users, permissions and previews."
+        actions={
+          <>
+            <Button asChild variant="outline" size="sm"><Link href="/agency/settings/client-types">Client types</Link></Button>
+            <Button asChild variant="outline" size="sm"><Link href="/agency/settings/project-templates">Project templates</Link></Button>
+            <Button asChild variant="outline" size="sm"><Link href="/agency/settings/onboarding-flows">Onboarding flows</Link></Button>
+          </>
+        }
+      />
+
 
       <Card>
         <CardHeader>

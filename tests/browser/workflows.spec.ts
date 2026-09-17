@@ -4,7 +4,7 @@ import { del } from "@vercel/blob";
 import bcrypt from "bcryptjs";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../../src/db";
-import { organizations, users, clientAccounts, contentTemplates, contentItems, contentVersions, auditLogs, projects, designAssets, annotations, annotationComments, referenceFiles } from "../../src/db/schema";
+import { organizations, users, clientAccounts, contentTemplates, contentItems, contentVersions, auditLogs, projects, designAssets, annotations, annotationComments, referenceFiles, projectTemplates } from "../../src/db/schema";
 
 const run = randomUUID();
 const organizationId = randomUUID();
@@ -47,6 +47,7 @@ test.afterAll(async () => {
   const uploads = await db.query.referenceFiles.findMany({ where: eq(referenceFiles.title, uploadTitle) });
   if (process.env.BLOB_PRIVATE_READ_WRITE_TOKEN) for (const upload of uploads) await del(upload.fileUrl, { token: process.env.BLOB_PRIVATE_READ_WRITE_TOKEN });
   await db.delete(referenceFiles).where(inArray(referenceFiles.id, uploads.map((upload) => upload.id)));
+  await db.delete(projectTemplates).where(eq(projectTemplates.name, `E2E project template ${run}`));
   await db.delete(auditLogs).where(inArray(auditLogs.clientAccountId, [clientId, otherClientId]));
   await db.delete(auditLogs).where(inArray(auditLogs.actorUserId, Object.values(actors).map((actor) => actor.id)));
   await db.delete(organizations).where(eq(organizations.id, organizationId));
@@ -124,4 +125,24 @@ test("mobile client portal has no horizontal page overflow", async ({ page }) =>
   await login(page, "client");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.screenshot({ path: "test-results/portal-mobile.png", fullPage: true });
+});
+
+test("admin builds a project template with milestones and required deliverables", async ({ page }) => {
+  const templateName = `E2E project template ${run}`;
+  await login(page, "admin");
+  await page.goto("/agency/settings/project-templates");
+  await page.getByLabel("Name", { exact: true }).fill(templateName);
+  await page.getByRole("button", { name: "Create template", exact: true }).click();
+  const templateCard = page.locator('[data-testid^="project-template-"]', { has: page.getByText(templateName, { exact: true }) }).first();
+  await expect(templateCard).toBeVisible();
+  await templateCard.getByRole("button", { name: "Add milestone", exact: true }).click();
+  await templateCard.locator('input[value="New milestone"]').fill("Discovery call");
+  await templateCard.getByRole("button", { name: "Add deliverable", exact: true }).click();
+  await templateCard.locator('input[value="New deliverable"]').fill("Homepage design");
+  await templateCard.getByRole("button", { name: "Save template", exact: true }).click();
+  await expect(page.getByText("Project template saved")).toBeVisible();
+  await page.reload();
+  const reloadedCard = page.locator('[data-testid^="project-template-"]', { has: page.getByText(templateName, { exact: true }) }).first();
+  await expect(reloadedCard.locator('input[value="Discovery call"]')).toBeVisible();
+  await expect(reloadedCard.locator('input[value="Homepage design"]')).toBeVisible();
 });
