@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ConfirmButton } from "@/components/confirm-button";
 import { UploadForm } from "@/components/upload-form";
+import { SearchInput } from "@/components/search-input";
 import { db } from "@/db";
 import { referenceFiles, users } from "@/db/schema";
 import { requireClientUser } from "@/lib/auth-helpers";
@@ -33,8 +34,9 @@ function fileIcon(name: string, type: string | null) {
   return FileIcon;
 }
 
-export default async function PortalFilesPage() {
+export default async function PortalFilesPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const user = await requireClientUser();
+  const { q } = await searchParams;
   const rows = await db
     .select({
       id: referenceFiles.id,
@@ -52,6 +54,8 @@ export default async function PortalFilesPage() {
     .leftJoin(users, eq(referenceFiles.uploadedByUserId, users.id))
     .where(eq(referenceFiles.clientAccountId, user.clientAccountId))
     .orderBy(desc(referenceFiles.createdAt));
+  const query = (q ?? "").toLowerCase();
+  const filteredRows = query ? rows.filter((row) => row.title.toLowerCase().includes(query) || row.fileName.toLowerCase().includes(query)) : rows;
 
   return (
     <div className="space-y-6">
@@ -64,13 +68,18 @@ export default async function PortalFilesPage() {
         <CardContent><UploadForm action={uploadReference} fixedClientId={user.clientAccountId} kind="reference" submitLabel="Upload file" /></CardContent>
       </Card>
       <Card>
-        <CardHeader><CardTitle className="text-base">Shared reference files</CardTitle></CardHeader>
+        <CardHeader className="gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle className="text-base">Shared reference files</CardTitle>
+            <SearchInput placeholder="Search files…" />
+          </div>
+        </CardHeader>
         <CardContent>
-          {rows.length === 0 ? (
-            <EmptyState icon={FileText} title="No files yet" description="Upload a reference file above to share it with your team." />
+          {filteredRows.length === 0 ? (
+            <EmptyState icon={FileText} title={query ? "No files match your search" : "No files yet"} description={query ? "Try a different search term." : "Upload a reference file above to share it with your team."} />
           ) : (
             <div className="divide-y divide-border/60">
-              {rows.map((row) => {
+              {filteredRows.map((row) => {
                 const Icon = fileIcon(row.fileName, row.contentType);
                 const mine = row.uploadedByUserId === user.id;
                 return (

@@ -1,14 +1,27 @@
 import { and, eq, inArray } from "drizzle-orm";
+import Link from "next/link";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/db";
-import { accountManagerAssignments, documents, tasks, users } from "@/db/schema";
+import { accountManagerAssignments, contentItems, designAssets, documents, tasks, users } from "@/db/schema";
 import { requireClientUser } from "@/lib/auth-helpers";
 
 function initials(v: string) {
   const parts = v.trim().split(/\s+/);
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
+}
+
+function dueLabel(dueDate: Date | null) {
+  if (!dueDate) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate);
+  due.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((due.getTime() - today.getTime()) / 86_400_000);
+  if (diffDays < 0) return <Badge variant="destructive">Overdue</Badge>;
+  if (diffDays === 0) return <Badge className="bg-amber-500 text-white dark:bg-amber-600">Due today</Badge>;
+  return <span className="text-xs text-muted-foreground">Due {due.toLocaleDateString()}</span>;
 }
 
 export default async function PortalDashboardPage() {
@@ -26,10 +39,16 @@ export default async function PortalDashboardPage() {
     .from(tasks)
     .where(and(eq(tasks.clientAccountId, clientAccountId), inArray(tasks.status, ["open", "in_progress"])));
 
-  const pendingDocs = await db
-    .select({ id: documents.id, title: documents.title, kind: documents.kind })
-    .from(documents)
-    .where(and(eq(documents.clientAccountId, clientAccountId), eq(documents.status, "pending")));
+  const [pendingDocs, pendingDesigns, pendingContent] = await Promise.all([
+    db.select({ id: documents.id, title: documents.title, kind: documents.kind }).from(documents).where(and(eq(documents.clientAccountId, clientAccountId), eq(documents.status, "pending"))),
+    db.select({ id: designAssets.id, title: designAssets.title }).from(designAssets).where(and(eq(designAssets.clientAccountId, clientAccountId), eq(designAssets.status, "pending"))),
+    db.select({ id: contentItems.id, title: contentItems.title }).from(contentItems).where(and(eq(contentItems.clientAccountId, clientAccountId), eq(contentItems.status, "pending_client"))),
+  ]);
+  const reviewItems = [
+    ...pendingDocs.map((d) => ({ id: d.id, title: d.title, kind: d.kind, href: "/portal/approvals" })),
+    ...pendingDesigns.map((d) => ({ id: d.id, title: d.title, kind: "design" as const, href: "/portal/approvals" })),
+    ...pendingContent.map((c) => ({ id: c.id, title: c.title, kind: "content" as const, href: `/portal/content/${c.id}` })),
+  ];
 
   return (
     <div className="space-y-6">
@@ -75,9 +94,10 @@ export default async function PortalDashboardPage() {
               openTasks.map((t) => (
                 <div key={t.id} className="flex items-center justify-between gap-2">
                   <span className="truncate text-sm">{t.title}</span>
-                  <Badge variant="secondary" className="capitalize">
-                    {t.priority}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    {dueLabel(t.dueDate)}
+                    <Badge variant="secondary" className="capitalize">{t.priority}</Badge>
+                  </div>
                 </div>
               ))
             )}
@@ -87,19 +107,17 @@ export default async function PortalDashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Awaiting your review</CardTitle>
-            <CardDescription>Files and designs to approve.</CardDescription>
+            <CardDescription>Files, designs and content to approve.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {pendingDocs.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nothing to review right now.</p>
+            {reviewItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nothing to review right now. 🎉</p>
             ) : (
-              pendingDocs.map((d) => (
-                <div key={d.id} className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm">{d.title}</span>
-                  <Badge variant="outline" className="capitalize">
-                    {d.kind}
-                  </Badge>
-                </div>
+              reviewItems.map((item) => (
+                <Link key={`${item.kind}-${item.id}`} href={item.href} className="flex items-center justify-between gap-2 hover:underline">
+                  <span className="truncate text-sm">{item.title}</span>
+                  <Badge variant="outline" className="capitalize">{item.kind}</Badge>
+                </Link>
               ))
             )}
           </CardContent>
@@ -108,3 +126,4 @@ export default async function PortalDashboardPage() {
     </div>
   );
 }
+
