@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { prepareUpload } from "@/lib/upload-client";
 import { addTaskComment, deleteTaskComment, getTaskDetail, updateTaskDetails, type TaskDetail } from "./actions";
 
 export function TaskDetailDialog({ taskId, title, currentUserId, canEdit }: { taskId: string; title: string; currentUserId: string; canEdit: boolean }) {
@@ -15,6 +17,7 @@ export function TaskDetailDialog({ taskId, title, currentUserId, canEdit }: { ta
   const [detail, setDetail] = useState<TaskDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [comment, setComment] = useState("");
+  const [commentFile, setCommentFile] = useState<File | null>(null);
   const [pending, start] = useTransition();
 
   useEffect(() => {
@@ -38,8 +41,21 @@ export function TaskDetailDialog({ taskId, title, currentUserId, canEdit }: { ta
   function submitComment() {
     if (!comment.trim()) return;
     start(async () => {
-      await addTaskComment(taskId, comment);
+      let attachmentForm: FormData | undefined;
+      if (commentFile && detail) {
+        const form = new FormData();
+        form.set("file", commentFile);
+        form.set("clientAccountId", detail.clientAccountId);
+        try {
+          attachmentForm = await prepareUpload(form, "task_attachment");
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "Attachment upload failed.");
+          return;
+        }
+      }
+      await addTaskComment(taskId, comment, attachmentForm);
       setComment("");
+      setCommentFile(null);
       const refreshed = await getTaskDetail(taskId);
       setDetail(refreshed);
     });
@@ -103,6 +119,7 @@ export function TaskDetailDialog({ taskId, title, currentUserId, canEdit }: { ta
                           </div>
                         </div>
                         <p className="mt-1 whitespace-pre-wrap">{item.body}</p>
+                        {item.attachmentUrl ? <a href={`/api/files/task-comment/${item.id}`} className="mt-2 flex items-center gap-1 text-xs font-medium underline underline-offset-2"><Paperclip className="size-3" />{item.attachmentName ?? "Attachment"}</a> : null}
                       </div>
                     ))}
                   </div>
@@ -110,7 +127,10 @@ export function TaskDetailDialog({ taskId, title, currentUserId, canEdit }: { ta
                 <div className="flex gap-2">
                   <Textarea value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Add a comment…" rows={2} />
                 </div>
-                <Button size="sm" onClick={submitComment} disabled={pending || !comment.trim()}>Add comment</Button>
+                <div className="flex items-center justify-between gap-2">
+                  <Input type="file" className="max-w-56 text-xs" onChange={(event) => setCommentFile(event.target.files?.[0] ?? null)} />
+                  <Button size="sm" onClick={submitComment} disabled={pending || !comment.trim()}>Add comment</Button>
+                </div>
               </div>
             </div>
           )}

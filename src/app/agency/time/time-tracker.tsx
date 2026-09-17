@@ -10,6 +10,11 @@ type Client = { id: string; name: string };
 type Project = { id: string; clientAccountId: string; name: string };
 type Task = { id: string; clientAccountId: string; projectId: string | null; title: string };
 export type ActiveTimer = { startedAt: string; clientName: string; projectName: string | null; taskTitle: string | null };
+export type TimerEventDetail = { active: ActiveTimer | null };
+
+export function notifyTimerChanged(active: ActiveTimer | null) {
+  window.dispatchEvent(new CustomEvent<TimerEventDetail>("i3:timer-changed", { detail: { active } }));
+}
 
 function formatDuration(seconds: number) {
   const hours = Math.floor(seconds / 3600);
@@ -26,6 +31,15 @@ export function TimeTracker({ clients, projects, tasks, initialActive }: { clien
   const [taskId, setTaskId] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    const handleTimerChanged = (event: Event) => {
+      setActive((event as CustomEvent<TimerEventDetail>).detail.active);
+      setOpen(true);
+    };
+    window.addEventListener("i3:timer-changed", handleTimerChanged);
+    return () => window.removeEventListener("i3:timer-changed", handleTimerChanged);
+  }, []);
 
   useEffect(() => {
     if (!active) {
@@ -65,9 +79,14 @@ export function TimeTracker({ clients, projects, tasks, initialActive }: { clien
         toast.error(result.error);
         return;
       }
+      const client = clients.find((item) => item.id === clientId);
+      const project = projects.find((item) => item.id === projectId);
+      const task = tasks.find((item) => item.id === taskId);
+      const nextActive: ActiveTimer = { startedAt: result.startedAt ?? new Date().toISOString(), clientName: client?.name ?? "Client work", projectName: project?.name ?? null, taskTitle: task?.title ?? null };
+      setActive(nextActive);
+      notifyTimerChanged(nextActive);
       setOpen(true);
       toast.success("Timer started");
-      window.location.reload();
     });
   }
 
@@ -79,11 +98,11 @@ export function TimeTracker({ clients, projects, tasks, initialActive }: { clien
         return;
       }
       setActive(null);
+      notifyTimerChanged(null);
       setClientId("");
       setProjectId("");
       setTaskId("");
       toast.success(`Logged ${formatDuration(result.durationSeconds ?? 0)}`);
-      window.location.reload();
     });
   }
 

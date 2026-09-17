@@ -1,8 +1,8 @@
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 export const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
-export type UploadKind = "document" | "reference" | "design" | "version" | "avatar" | "ticket_attachment";
+export type UploadKind = "document" | "reference" | "design" | "version" | "avatar" | "ticket_attachment" | "task_attachment";
 
-const PRIVATE_KINDS: UploadKind[] = ["document", "reference", "ticket_attachment"];
+const PRIVATE_KINDS: UploadKind[] = ["document", "reference", "ticket_attachment", "task_attachment"];
 export function isPrivateUploadKind(kind: UploadKind) {
   return PRIVATE_KINDS.includes(kind);
 }

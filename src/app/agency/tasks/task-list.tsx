@@ -10,10 +10,15 @@ import { bulkUpdateTasks } from "./actions";
 import { TaskAssignee } from "./task-assignee";
 import { TaskDetailDialog } from "./task-detail-dialog";
 import { TaskStatus } from "./task-status";
+import { TaskTimerButton } from "./task-timer-button";
 
 export type TaskRow = {
   id: string;
   title: string;
+  clientAccountId: string;
+  projectId: string | null;
+  clientName: string;
+  projectName: string | null;
   meta: string;
   priority: "low" | "medium" | "high" | "urgent";
   status: "open" | "in_progress" | "blocked" | "done";
@@ -100,6 +105,7 @@ export function TaskList({ rows, team, currentUserId, canManage }: { rows: TaskR
               {task.dueLabel === "overdue" ? <Badge variant="destructive">Overdue</Badge> : null}
               {task.dueLabel === "soon" ? <Badge className="bg-amber-500 text-white dark:bg-amber-600">Due soon</Badge> : null}
               {task.timeSeconds > 0 ? <Badge variant="outline" className="font-mono">{formatTime(task.timeSeconds)}</Badge> : null}
+              <TaskTimerButton clientAccountId={task.clientAccountId} projectId={task.projectId} taskId={task.id} clientName={task.clientName} projectName={task.projectName} taskTitle={task.title} />
               {canManage ? <TaskAssignee taskId={task.id} assignedToUserId={task.assignedToUserId} team={team} /> : null}
               {canEditTask ? <TaskStatus taskId={task.id} value={task.status} /> : <Badge variant="outline" className="capitalize">{task.status.replace("_", " ")}</Badge>}
             </div>

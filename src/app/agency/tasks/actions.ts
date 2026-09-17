@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { taskComments, tasks } from "@/db/schema";
 import { requireAgencyUser, requireManager } from "@/lib/auth-helpers";
 import { auditLog } from "@/lib/audit";
+import { consumeUpload, verifiedUpload } from "@/lib/upload-server";
 
 const taskSchema = z.object({
   clientAccountId: z.string().min(1),
@@ -94,13 +95,19 @@ export async function updateTaskDetails(taskId: string, patch: { title: string; 
   revalidatePath("/portal");
 }
 
-export async function addTaskComment(taskId: string, body: string): Promise<void> {
+export async function addTaskComment(taskId: string, body: string, attachmentForm?: FormData): Promise<void> {
   const access = await requireTaskAccess(taskId);
   if (!access) return;
   const { actor, task } = access;
   const trimmed = body.trim();
   if (trimmed.length < 1) return;
-  await db.insert(taskComments).values({ taskId, authorUserId: actor.id, body: trimmed });
+  let attachment: { attachmentUrl?: string; attachmentName?: string; attachmentContentType?: string; attachmentSize?: number } = {};
+  if (attachmentForm?.get("uploadedUrl")) {
+    const blob = await verifiedUpload(attachmentForm, actor.id, "task_attachment", task.clientAccountId);
+    await consumeUpload(blob.pathname);
+    attachment = { attachmentUrl: blob.url, attachmentName: blob.fileName, attachmentContentType: blob.contentType, attachmentSize: blob.size };
+  }
+  await db.insert(taskComments).values({ taskId, authorUserId: actor.id, body: trimmed, ...attachment });
   await auditLog({ actorUserId: actor.id, action: "task.comment_added", entityType: "task", entityId: taskId, clientAccountId: task.clientAccountId });
   revalidatePath("/agency/tasks");
 }
@@ -132,12 +139,13 @@ export async function bulkUpdateTasks(taskIds: string[], patch: { status?: "open
 
 export type TaskDetail = {
   id: string;
+  clientAccountId: string;
   title: string;
   description: string | null;
   priority: "low" | "medium" | "high" | "urgent";
   status: "open" | "in_progress" | "blocked" | "done";
   dueDate: string | null;
-  comments: { id: string; body: string; authorName: string | null; authorUserId: string | null; createdAt: string }[];
+  comments: { id: string; body: string; authorName: string | null; authorUserId: string | null; createdAt: string; attachmentUrl: string | null; attachmentName: string | null }[];
 };
 
 export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> {
@@ -147,12 +155,13 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
   const comments = await db.query.taskComments.findMany({ where: eq(taskComments.taskId, taskId), orderBy: (comment, { asc }) => [asc(comment.createdAt)], with: { author: { columns: { id: true, name: true, email: true } } } });
   return {
     id: task.id,
+    clientAccountId: task.clientAccountId,
     title: task.title,
     description: task.description,
     priority: task.priority,
     status: task.status,
     dueDate: task.dueDate ? task.dueDate.toISOString().slice(0, 10) : null,
-    comments: comments.map((comment) => ({ id: comment.id, body: comment.body, authorName: comment.author?.name ?? comment.author?.email ?? null, authorUserId: comment.authorUserId, createdAt: comment.createdAt.toISOString() })),
+    comments: comments.map((comment) => ({ id: comment.id, body: comment.body, authorName: comment.author?.name ?? comment.author?.email ?? null, authorUserId: comment.authorUserId, createdAt: comment.createdAt.toISOString(), attachmentUrl: comment.attachmentUrl, attachmentName: comment.attachmentName })),
   };
 }
 

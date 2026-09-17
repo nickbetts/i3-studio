@@ -8,7 +8,7 @@ import { getCurrentUser, isAgencyRole } from "@/lib/auth-helpers";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { IMAGE_TYPES, isPrivateUploadKind, validateUpload } from "@/lib/upload-policy";
 
-const payloadSchema = z.object({ kind: z.enum(["document", "reference", "design", "version", "avatar", "ticket_attachment"]), clientAccountId: z.string().nullable(), designAssetId: z.string().nullable(), userId: z.string().nullable(), size: z.number(), contentType: z.string().max(200), fileName: z.string().min(1).max(255) });
+const payloadSchema = z.object({ kind: z.enum(["document", "reference", "design", "version", "avatar", "ticket_attachment", "task_attachment"]), clientAccountId: z.string().nullable(), designAssetId: z.string().nullable(), userId: z.string().nullable(), size: z.number(), contentType: z.string().max(200), fileName: z.string().min(1).max(255) });
 
 export async function POST(request: Request) {
   try {

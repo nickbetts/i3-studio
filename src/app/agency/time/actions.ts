@@ -29,7 +29,7 @@ async function validateTimerSelection(input: z.infer<typeof timerInput>) {
   return true;
 }
 
-export async function startTimer(input: { clientAccountId: string; projectId?: string | null; taskId?: string | null; note?: string }): Promise<{ ok: boolean; error?: string }> {
+export async function startTimer(input: { clientAccountId: string; projectId?: string | null; taskId?: string | null; note?: string }): Promise<{ ok: boolean; error?: string; startedAt?: string }> {
   const actor = await requireAgencyUser();
   const parsed = timerInput.safeParse(input);
   if (!parsed.success || !await validateTimerSelection(parsed.data)) return { ok: false, error: "Choose a valid client, project and task." };
@@ -39,10 +39,10 @@ export async function startTimer(input: { clientAccountId: string; projectId?: s
   await auditLog({ actorUserId: actor.id, action: "time.started", entityType: "time_entry", entityId: timer.id, clientAccountId: parsed.data.clientAccountId, metadata: { projectId: parsed.data.projectId || null, taskId: parsed.data.taskId || null } });
   revalidatePath("/agency/time");
   revalidatePath("/agency/tasks");
-  return { ok: true };
+  return { ok: true, startedAt: new Date().toISOString() };
 }
 
-export async function stopTimer(): Promise<{ ok: boolean; error?: string; durationSeconds?: number }> {
+export async function stopTimer(): Promise<{ ok: boolean; error?: string; durationSeconds?: number; startedAt?: string }> {
   const actor = await requireAgencyUser();
   const active = await db.query.activeTimers.findFirst({ where: eq(activeTimers.userId, actor.id) });
   if (!active) return { ok: false, error: "No timer is running." };
@@ -53,7 +53,7 @@ export async function stopTimer(): Promise<{ ok: boolean; error?: string; durati
   await auditLog({ actorUserId: actor.id, action: "time.stopped", entityType: "time_entry", entityId: entry.id, clientAccountId: active.clientAccountId, metadata: { durationSeconds, projectId: active.projectId, taskId: active.taskId } });
   revalidatePath("/agency/time");
   revalidatePath("/agency/tasks");
-  return { ok: true, durationSeconds };
+  return { ok: true, durationSeconds, startedAt: active.startedAt.toISOString() };
 }
 
 export async function setClientTimeBudget(formData: FormData): Promise<void> {

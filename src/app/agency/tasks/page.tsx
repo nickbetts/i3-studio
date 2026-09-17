@@ -85,6 +85,10 @@ export default async function AgencyTasksPage({ searchParams }: { searchParams: 
   const rows: TaskRow[] = sorted.map((task) => ({
     id: task.id,
     title: task.title,
+    clientAccountId: task.clientAccountId,
+    projectId: task.projectId,
+    clientName: clientName(task.clientAccountId),
+    projectName: projectName(task.projectId),
     meta: `${clientName(task.clientAccountId)}${projectName(task.projectId) ? ` · ${projectName(task.projectId)}` : ""} · ${task.priority}${task.dueDate ? ` · due ${task.dueDate.toLocaleDateString()}` : ""}`,
     priority: task.priority,
     status: task.status,
