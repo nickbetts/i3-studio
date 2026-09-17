@@ -11,16 +11,11 @@ import { db } from "@/db";
 import { clientAccounts, clientTimeBudgets, projects, tasks, timeEntries } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
 import { setClientTimeBudget } from "./actions";
+import { formatLoggedTime } from "@/lib/time-format";
 
 function monthBounds() {
   const now = new Date();
   return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999) };
-}
-
-function formatDuration(seconds: number) {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.round((seconds % 3600) / 60);
-  return `${hours}h ${String(minutes).padStart(2, "0")}m`;
 }
 
 function dateInput(date: Date) {
@@ -61,8 +56,8 @@ export default async function AgencyTimePage() {
             return (
               <div key={client.id} className="rounded-lg border p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div><p className="font-medium">{client.name}</p><p className="text-xs text-muted-foreground">{formatDuration(spent)} spent{budget ? ` · ${formatDuration(Math.max(0, remaining))} remaining` : " · no allocation set"}</p></div>
-                  {budget ? <Badge variant={remaining < 0 ? "destructive" : "secondary"}>{remaining < 0 ? `${formatDuration(Math.abs(remaining))} over` : `${Math.round((spent / Math.max(allocated, 1)) * 100)}% used`}</Badge> : null}
+                  <div><p className="font-medium">{client.name}</p><p className="text-xs text-muted-foreground">{formatLoggedTime(spent)} spent{budget ? ` · ${formatLoggedTime(Math.max(0, remaining))} remaining` : " · no allocation set"}</p></div>
+                  {budget ? <Badge variant={remaining < 0 ? "destructive" : "secondary"}>{remaining < 0 ? `${formatLoggedTime(Math.abs(remaining))} over` : `${Math.round((spent / Math.max(allocated, 1)) * 100)}% used`}</Badge> : null}
                 </div>
                 {canManage ? (
                   <form action={setClientTimeBudget} className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
@@ -84,7 +79,7 @@ export default async function AgencyTimePage() {
         <CardContent>
           {entries.length === 0 ? <EmptyState icon={Clock3} title="Nothing logged yet" description="Start a timer from anywhere in the agency area." /> : (
             <div className="space-y-2">
-              {entries.map((entry) => <div key={entry.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-3 last:border-0"><div><p className="font-medium">{clientName.get(entry.clientAccountId) ?? "Unknown client"}{entry.taskId ? ` · ${taskName.get(entry.taskId) ?? "Task"}` : ""}</p><p className="text-xs text-muted-foreground">{userName.get(entry.userId) ?? "Team member"}{entry.projectId ? ` · ${projectName.get(entry.projectId) ?? "Project"}` : ""} · {entry.startedAt.toLocaleString()}</p></div><Badge variant="outline" className="font-mono">{formatDuration(entry.durationSeconds)}</Badge></div>)}
+              {entries.map((entry) => <div key={entry.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-3 last:border-0"><div><p className="font-medium">{clientName.get(entry.clientAccountId) ?? "Unknown client"}{entry.taskId ? ` · ${taskName.get(entry.taskId) ?? "Task"}` : ""}</p><p className="text-xs text-muted-foreground">{userName.get(entry.userId) ?? "Team member"}{entry.projectId ? ` · ${projectName.get(entry.projectId) ?? "Project"}` : ""} · {entry.startedAt.toLocaleString()}</p></div><Badge variant="outline" className="font-mono tabular-nums">{formatLoggedTime(entry.durationSeconds)}</Badge></div>)}
             </div>
           )}
         </CardContent>

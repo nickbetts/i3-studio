@@ -5,6 +5,7 @@ import { Clock3, Play, Square, Timer } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { startTimer, stopTimer } from "./actions";
+import { formatLoggedTime } from "@/lib/time-format";
 
 type Client = { id: string; name: string };
 type Project = { id: string; clientAccountId: string; name: string };
@@ -14,13 +15,6 @@ export type TimerEventDetail = { active: ActiveTimer | null };
 
 export function notifyTimerChanged(active: ActiveTimer | null) {
   window.dispatchEvent(new CustomEvent<TimerEventDetail>("i3:timer-changed", { detail: { active } }));
-}
-
-function formatDuration(seconds: number) {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remaining = seconds % 60;
-  return hours > 0 ? `${hours}h ${String(minutes).padStart(2, "0")}m` : `${minutes}:${String(remaining).padStart(2, "0")}`;
 }
 
 export function TimeTracker({ clients, projects, tasks, initialActive }: { clients: Client[]; projects: Project[]; tasks: Task[]; initialActive: ActiveTimer | null }) {
@@ -102,7 +96,7 @@ export function TimeTracker({ clients, projects, tasks, initialActive }: { clien
       setClientId("");
       setProjectId("");
       setTaskId("");
-      toast.success(`Logged ${formatDuration(result.durationSeconds ?? 0)}`);
+      toast.success(`Logged ${formatLoggedTime(result.durationSeconds ?? 0)}`);
     });
   }
 
@@ -118,7 +112,7 @@ export function TimeTracker({ clients, projects, tasks, initialActive }: { clien
                   <p className="mt-1 truncate font-medium">{active.clientName}</p>
                   <p className="truncate text-xs text-muted-foreground">{active.projectName ?? "Client work"}{active.taskTitle ? ` · ${active.taskTitle}` : ""}</p>
                 </div>
-                <span className="font-mono text-lg font-semibold tabular-nums">{formatDuration(elapsed)}</span>
+                <span className="font-mono text-lg font-semibold tabular-nums">{formatLoggedTime(elapsed)}</span>
               </div>
               <Button type="button" className="w-full" variant="destructive" onClick={finish} disabled={pending}><Square className="size-4" /> Stop and log time</Button>
             </div>
@@ -144,7 +138,7 @@ export function TimeTracker({ clients, projects, tasks, initialActive }: { clien
       ) : null}
       <Button type="button" size="lg" className="rounded-full px-4 shadow-lg" onClick={() => setOpen((value) => !value)} aria-label={active ? "Open active timer" : "Start a timer"}>
         {active ? <Clock3 className="size-4" /> : <Timer className="size-4" />}
-        {active ? <span className="font-mono tabular-nums">{formatDuration(elapsed)}</span> : <span>Track time</span>}
+        {active ? <span className="font-mono tabular-nums">{formatLoggedTime(elapsed)}</span> : <span>Track time</span>}
       </Button>
     </div>
   );

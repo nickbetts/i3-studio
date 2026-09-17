@@ -11,6 +11,7 @@ import { TaskAssignee } from "./task-assignee";
 import { TaskDetailDialog } from "./task-detail-dialog";
 import { TaskStatus } from "./task-status";
 import { TaskTimerButton } from "./task-timer-button";
+import { formatLoggedTime } from "@/lib/time-format";
 
 export type TaskRow = {
   id: string;
@@ -28,13 +29,6 @@ export type TaskRow = {
 };
 
 type Member = { id: string; name: string | null; email: string };
-
-function formatTime(seconds: number) {
-  if (seconds < 60) return `${seconds}s`;
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.round((seconds % 3600) / 60);
-  return hours > 0 ? `${hours}h ${String(minutes).padStart(2, "0")}m` : `${minutes}m`;
-}
 
 export function TaskList({ rows, team, currentUserId, canManage }: { rows: TaskRow[]; team: Member[]; currentUserId: string; canManage: boolean }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -104,7 +98,7 @@ export function TaskList({ rows, team, currentUserId, canManage }: { rows: TaskR
             <div className="flex items-center gap-2">
               {task.dueLabel === "overdue" ? <Badge variant="destructive">Overdue</Badge> : null}
               {task.dueLabel === "soon" ? <Badge className="bg-amber-500 text-white dark:bg-amber-600">Due soon</Badge> : null}
-              {task.timeSeconds > 0 ? <Badge variant="outline" className="font-mono">{formatTime(task.timeSeconds)}</Badge> : null}
+              {task.timeSeconds > 0 ? <Badge variant="outline" className="font-mono tabular-nums">{formatLoggedTime(task.timeSeconds)}</Badge> : null}
               <TaskTimerButton clientAccountId={task.clientAccountId} projectId={task.projectId} taskId={task.id} clientName={task.clientName} projectName={task.projectName} taskTitle={task.title} />
               {canManage ? <TaskAssignee taskId={task.id} assignedToUserId={task.assignedToUserId} team={team} /> : null}
               {canEditTask ? <TaskStatus taskId={task.id} value={task.status} /> : <Badge variant="outline" className="capitalize">{task.status.replace("_", " ")}</Badge>}
