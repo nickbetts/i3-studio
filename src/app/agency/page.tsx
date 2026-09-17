@@ -1,8 +1,9 @@
-import { count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, inArray, lte } from "drizzle-orm";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { Activity, CalendarClock, FileText, FolderKanban, Image as ImageIcon, LifeBuoy, Plus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
@@ -13,7 +14,11 @@ import { requireAgencyUser } from "@/lib/auth-helpers";
 export default async function AgencyDashboardPage() {
   const user = await requireAgencyUser();
 
-  const [[clientCount], [openTasks], [openTickets], activity] = await Promise.all([
+  const dueSoonCutoff = new Date();
+  dueSoonCutoff.setDate(dueSoonCutoff.getDate() + 3);
+  dueSoonCutoff.setHours(23, 59, 59, 999);
+
+  const [[clientCount], [openTasks], [openTickets], activity, tasksDueSoon] = await Promise.all([
     db.select({ value: count() }).from(clientAccounts),
     db.select({ value: count() }).from(tasks).where(eq(tasks.status, "open")),
     db.select({ value: count() }).from(tickets).where(eq(tickets.status, "open")),
@@ -23,11 +28,18 @@ export default async function AgencyDashboardPage() {
       .leftJoin(users, eq(auditLogs.actorUserId, users.id))
       .orderBy(desc(auditLogs.createdAt))
       .limit(6),
+    db
+      .select({ id: tasks.id, title: tasks.title, dueDate: tasks.dueDate, priority: tasks.priority, clientAccountId: tasks.clientAccountId, clientName: clientAccounts.name })
+      .from(tasks)
+      .leftJoin(clientAccounts, eq(tasks.clientAccountId, clientAccounts.id))
+      .where(and(inArray(tasks.status, ["open", "in_progress", "blocked"]), lte(tasks.dueDate, dueSoonCutoff)))
+      .orderBy(tasks.dueDate)
+      .limit(8),
   ]);
 
   const stats = [
     { label: "Clients", value: clientCount?.value ?? 0, description: "Total client accounts", href: "/agency/clients", icon: Users, tint: "text-chart-2 bg-chart-2/10" },
-    { label: "Open tasks", value: openTasks?.value ?? 0, description: "Needs awaiting action", href: "/agency/clients", icon: FolderKanban, tint: "text-primary bg-primary/10" },
+    { label: "Open tasks", value: openTasks?.value ?? 0, description: "Needs awaiting action", href: "/agency/tasks", icon: FolderKanban, tint: "text-primary bg-primary/10" },
     { label: "Open tickets", value: openTickets?.value ?? 0, description: "Support requests", href: "/agency/support", icon: LifeBuoy, tint: "text-chart-4 bg-chart-4/10" },
   ];
 
@@ -102,6 +114,36 @@ export default async function AgencyDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div><CardTitle className="text-base">Tasks due soon</CardTitle><CardDescription>Open tasks due within 3 days, across all clients.</CardDescription></div>
+            <Link href="/agency/tasks?assignee=all" className="text-xs underline-offset-4 hover:underline">View all tasks</Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {tasksDueSoon.length === 0 ? (
+            <EmptyState icon={FolderKanban} title="Nothing due soon" description="Tasks due in the next 3 days will show up here." />
+          ) : (
+            <div className="space-y-2">
+              {tasksDueSoon.map((task) => (
+                <div key={task.id} className="flex flex-wrap items-center justify-between gap-3 border-b py-2 last:border-0">
+                  <div>
+                    <p className="text-sm font-medium">{task.title}</p>
+                    <p className="text-xs text-muted-foreground">{task.clientName ?? "Unknown client"}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {task.dueDate ? <Badge variant={task.dueDate < new Date() ? "destructive" : "outline"}>{task.dueDate < new Date() ? "Overdue" : `Due ${task.dueDate.toLocaleDateString()}`}</Badge> : null}
+                    <Badge variant="secondary" className="capitalize">{task.priority}</Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
+
