@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SERVICE_ALLOCATIONS } from "@/lib/service-allocations";
 import { formatLoggedTime } from "@/lib/time-format";
+import { StackedServiceProgress } from "./stacked-service-progress";
 
 export type AllocationClient = {
   id: string;
@@ -16,6 +17,7 @@ export type AllocationClient = {
   end: string;
   totalHours: number;
   spentSeconds: number;
+  serviceSpent: Record<string, number>;
   serviceAllocations: { serviceType: string; allocatedSeconds: number; allocatedQuantity: number }[];
 };
 
@@ -59,6 +61,7 @@ export function ServiceAllocationEditor({ clients, action }: { clients: Allocati
       {selected ? (
         <div className="min-w-0 p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-3 border-b pb-5"><div><p className="text-lg font-semibold">{selected.name}</p><p className="mt-1 text-xs text-muted-foreground">{selected.start} - {selected.end}</p></div><div className="rounded-md bg-muted px-3 py-2 text-right"><p className="text-[11px] text-muted-foreground">Logged this month</p><p className="font-mono text-sm font-semibold tabular-nums">{formatLoggedTime(selected.spentSeconds)}</p></div></div>
+                    <div className="mt-5"><StackedServiceProgress totalAllocatedSeconds={selected.totalHours * 3600} serviceSpent={selected.serviceSpent} serviceAllocations={selected.serviceAllocations} /></div>
           <form action={submit} onChange={(event) => { const target = event.target as unknown as HTMLInputElement; if (target.name === "totalHours") setTotalHours(Number(target.value) || 0); if (target.name.startsWith("hours_")) { const form = target.form; if (form) setSplitHours(SERVICE_ALLOCATIONS.filter((service) => service.kind === "hours").reduce((total, service) => total + (Number(new FormData(form).get(`hours_${service.key}`)) || 0), 0)); } }} className="mt-5 space-y-6">
             <input type="hidden" name="clientAccountId" value={selected.id} /><input type="hidden" name="periodStart" value={selected.start} /><input type="hidden" name="periodEnd" value={selected.end} />
             <section className={`rounded-lg border p-4 ${Math.abs(totalHours - splitHours) < 0.001 ? "border-primary/30 bg-primary/5" : "border-amber-400/50 bg-amber-400/5"}`}><div className="flex flex-wrap items-end justify-between gap-4"><div><Label htmlFor="allocation-total">Total monthly hours</Label><p className="mt-1 text-xs text-muted-foreground">Split this total across the hour services below.</p></div><div className="w-40"><Input id="allocation-total" name="totalHours" type="number" min="0" max="10000" step="0.25" required value={totalHours || ""} onChange={(event) => setTotalHours(Number(event.target.value) || 0)} placeholder="e.g. 40" /></div></div><div className="mt-3 flex items-center justify-between text-xs"><span>Hour split: <strong className="font-mono">{splitHours.toFixed(2)}h</strong> of <strong className="font-mono">{totalHours.toFixed(2)}h</strong></span><span className={Math.abs(totalHours - splitHours) < 0.001 ? "text-primary" : "text-amber-300"}>{Math.abs(totalHours - splitHours) < 0.001 ? "Balanced" : `${(totalHours - splitHours).toFixed(2)}h remaining to allocate`}</span></div></section>
