@@ -78,7 +78,12 @@ export async function setClientServiceAllocations(formData: FormData): Promise<v
   const clientAccountId = String(formData.get("clientAccountId") || "");
   const periodStart = new Date(`${String(formData.get("periodStart") || "")}T00:00:00.000Z`);
   const periodEnd = new Date(`${String(formData.get("periodEnd") || "")}T23:59:59.999Z`);
-  if (!clientAccountId || Number.isNaN(periodStart.getTime()) || Number.isNaN(periodEnd.getTime()) || periodEnd <= periodStart) return;
+  if (!clientAccountId || Number.isNaN(periodStart.getTime()) || Number.isNaN(periodEnd.getTime()) || periodEnd <= periodStart) throw new Error("Choose a valid allocation period.");
+  const totalHours = Number(formData.get("totalHours") || 0);
+  if (!Number.isFinite(totalHours) || totalHours < 0 || totalHours > 10000) throw new Error("Enter a valid monthly total.");
+  const hourServices = SERVICE_ALLOCATIONS.filter((service) => service.kind === "hours");
+  const splitHours = hourServices.reduce((total, service) => total + Math.max(0, Number(formData.get(`hours_${service.key}`) || 0)), 0);
+  if (Math.abs(splitHours - totalHours) > 0.001) throw new Error("The hour split must equal the monthly total.");
   for (const service of SERVICE_ALLOCATIONS) {
     const hours = Number(formData.get(`hours_${service.key}`) || 0);
     const quantity = Number(formData.get(`quantity_${service.key}`) || 0);
@@ -86,6 +91,7 @@ export async function setClientServiceAllocations(formData: FormData): Promise<v
     const allocatedQuantity = service.kind === "quantity" && Number.isFinite(quantity) ? Math.round(Math.max(0, quantity)) : 0;
     await db.insert(clientServiceAllocations).values({ clientAccountId, periodStart, periodEnd, serviceType: service.key, allocatedSeconds, allocatedQuantity, createdByUserId: actor.id, updatedAt: new Date() }).onConflictDoUpdate({ target: [clientServiceAllocations.clientAccountId, clientServiceAllocations.periodStart, clientServiceAllocations.serviceType], set: { periodEnd, allocatedSeconds, allocatedQuantity, updatedAt: new Date() } });
   }
+  await db.insert(clientTimeBudgets).values({ clientAccountId, periodStart, periodEnd, allocatedSeconds: Math.round(totalHours * 3600), createdByUserId: actor.id, updatedAt: new Date() }).onConflictDoUpdate({ target: [clientTimeBudgets.clientAccountId, clientTimeBudgets.periodStart], set: { periodEnd, allocatedSeconds: Math.round(totalHours * 3600), updatedAt: new Date() } });
   await auditLog({ actorUserId: actor.id, action: "time.service_allocations_updated", entityType: "client_account", entityId: clientAccountId, clientAccountId, metadata: { periodStart: periodStart.toISOString(), periodEnd: periodEnd.toISOString() } });
   revalidatePath("/agency/time");
   revalidatePath("/portal/time");
