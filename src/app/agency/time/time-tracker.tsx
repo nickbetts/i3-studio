@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { startTimer, stopTimer } from "./actions";
 import { formatLoggedTime } from "@/lib/time-format";
+import { SERVICE_ALLOCATIONS } from "@/lib/service-allocations";
 
 type Client = { id: string; name: string };
 type Project = { id: string; clientAccountId: string; name: string };
@@ -25,6 +26,7 @@ export function TimeTracker({ clients, projects, tasks, initialActive }: { clien
   const [clientId, setClientId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [taskId, setTaskId] = useState("");
+  const [serviceType, setServiceType] = useState("account_manager_hours");
   const [elapsed, setElapsed] = useState(0);
   const [pending, startTransition] = useTransition();
 
@@ -70,7 +72,7 @@ export function TimeTracker({ clients, projects, tasks, initialActive }: { clien
   function begin() {
     if (!clientId) return;
     startTransition(async () => {
-      const result = await startTimer({ clientAccountId: clientId, projectId: projectId || null, taskId: taskId || null });
+      const result = await startTimer({ clientAccountId: clientId, projectId: projectId || null, taskId: taskId || null, serviceType });
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -134,6 +136,9 @@ export function TimeTracker({ clients, projects, tasks, initialActive }: { clien
               <select aria-label="Timer task" value={taskId} onChange={(event) => setTaskId(event.target.value)} disabled={!clientId} className="h-9 w-full rounded-md border bg-background px-3 text-sm disabled:opacity-50">
                 <option value="">No task</option>
                 {filteredTasks.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}
+              </select>
+              <select aria-label="Timer service" value={serviceType} onChange={(event) => setServiceType(event.target.value)} className="h-9 w-full rounded-md border bg-background px-3 text-sm">
+                {SERVICE_ALLOCATIONS.filter((service) => service.kind === "hours").map((service) => <option key={service.key} value={service.key}>{service.label}</option>)}
               </select>
               <Button type="button" className="w-full" onClick={begin} disabled={!clientId || pending}><Play className="size-4" /> Start timer</Button>
             </div>

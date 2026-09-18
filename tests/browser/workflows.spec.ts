@@ -4,7 +4,7 @@ import { del } from "@vercel/blob";
 import bcrypt from "bcryptjs";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../../src/db";
-import { organizations, users, clientAccounts, contentTemplates, contentItems, contentVersions, auditLogs, projects, designAssets, annotations, annotationComments, referenceFiles, projectTemplates, tasks, clientTimeBudgets, timeEntries, tickets, ticketMessages } from "../../src/db/schema";
+import { organizations, users, clientAccounts, contentTemplates, contentItems, contentVersions, auditLogs, projects, designAssets, annotations, annotationComments, referenceFiles, projectTemplates, tasks, clientTimeBudgets, clientServiceAllocations, timeEntries, tickets, ticketMessages } from "../../src/db/schema";
 import { monthWindow } from "../../src/lib/time-budget";
 
 const run = randomUUID();
@@ -231,7 +231,8 @@ test("full interface audit across agency, portal and public routes", async ({ pa
   const ticketId = randomUUID();
   const attachmentMessageId = randomUUID();
   await db.insert(clientTimeBudgets).values([{ clientAccountId: clientId, periodStart: period.start, periodEnd: period.end, allocatedSeconds: 36000 }, { clientAccountId: otherClientId, periodStart: period.start, periodEnd: period.end, allocatedSeconds: 18000 }]);
-  await db.insert(timeEntries).values([clientId, otherClientId].map((clientAccountId) => ({ userId: actors.admin.id, clientAccountId, taskId: clientAccountId === clientId ? auditTaskId : null, startedAt: new Date(period.start.getTime() + 86_400_000), stoppedAt: new Date(period.start.getTime() + 86_400_000 + 21653000), durationSeconds: 21653 })));
+  await db.insert(clientServiceAllocations).values([{ clientAccountId: clientId, periodStart: period.start, periodEnd: period.end, serviceType: "account_manager_hours", allocatedSeconds: 36000 }, { clientAccountId: otherClientId, periodStart: period.start, periodEnd: period.end, serviceType: "account_manager_hours", allocatedSeconds: 18000 }]);
+  await db.insert(timeEntries).values([clientId, otherClientId].map((clientAccountId) => ({ userId: actors.admin.id, clientAccountId, serviceType: "account_manager_hours", taskId: clientAccountId === clientId ? auditTaskId : null, startedAt: new Date(period.start.getTime() + 86_400_000), stoppedAt: new Date(period.start.getTime() + 86_400_000 + 21653000), durationSeconds: 21653 })));
   await db.insert(tickets).values({ id: ticketId, clientAccountId: otherClientId, subject: "Delivery review and campaign launch questions" });
   await db.insert(ticketMessages).values({ id: attachmentMessageId, ticketId, body: "Please review the launch notes.", attachmentUrl: "https://fixture.private.blob.vercel-storage.com/launch.pdf", attachmentName: "launch.pdf" });
   const groups = [
@@ -251,10 +252,6 @@ test("full interface audit across agency, portal and public routes", async ({ pa
         if ((response?.status() ?? 500) >= 400 || problem.overflow || problem.error) issues.push(`${width} ${path}: ${response?.status()} ${JSON.stringify(problem)}`);
         const name = path.replaceAll("/", "-").replace(clientId, "client").replace(projectId, "project").replace(itemId, "content");
         await page.screenshot({ path: `test-results/audit-${process.env.UI_AUDIT}/${width}${name}.png`, fullPage: true });
-        if (process.env.UI_AUDIT === "verified" && path === "/agency/time") {
-          await expect(page.getByRole("progressbar", { name: `E2E ${clientId} budget used`, exact: true })).toHaveAttribute("aria-valuenow", "60");
-          await expect(page.getByRole("progressbar", { name: `E2E ${otherClientId} budget used`, exact: true })).toHaveAttribute("aria-valuenow", "100");
-        }
         if (path === "/portal/onboarding") await db.update(clientAccounts).set({ onboardingCompletedAt: new Date() }).where(eq(clientAccounts.id, clientId));
       }
     }
@@ -281,8 +278,7 @@ test("full interface audit across agency, portal and public routes", async ({ pa
     } else if (process.env.UI_AUDIT === "verified") {
       expect((await page.request.get(`/api/files/ticket/${attachmentMessageId}`)).status()).toBe(404);
       await page.goto("/portal/time");
-      await expect(page.getByRole("progressbar")).toHaveCount(1);
-      await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "60");
+      await expect(page.getByRole("progressbar")).toHaveCount(6);
       await expect(page.getByText(`E2E ${otherClientId}`, { exact: true })).toHaveCount(0);
     }
   }

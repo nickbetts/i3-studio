@@ -11,11 +11,12 @@ import { PageHeader } from "@/components/page-header";
 import { db } from "@/db";
 import { projects, tasks } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
-import { setClientTimeBudget } from "./actions";
+import { setClientServiceAllocations } from "./actions";
 import { formatLoggedTime } from "@/lib/time-format";
 import { getTimeReport } from "@/lib/time-report";
 import { BudgetProgress } from "@/components/budget-progress";
 import { MonthNavigation } from "@/components/month-navigation";
+import { SERVICE_ALLOCATIONS } from "@/lib/service-allocations";
 
 function dateInput(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -47,20 +48,21 @@ export default async function AgencyTimePage({ searchParams }: { searchParams: P
       <Card>
         <CardHeader><CardTitle className="text-base">Client allocations</CardTitle><CardDescription>{period.label}</CardDescription></CardHeader>
         <CardContent className="divide-y divide-border">
-          {rows.map(({ client, budget, spent, start, end }) => {
+          {rows.map(({ client, budget, serviceAllocations, serviceSpent, start, end }) => {
             return (
-              <article key={client.id} className="grid gap-5 py-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+              <article key={client.id} data-testid={`client-allocation-${client.id}`} className="grid gap-5 py-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
                 <div className="min-w-0"><Link href={`/agency/clients/${client.id}`} className="font-semibold hover:text-primary">{client.name}</Link><p className="mt-1 text-xs text-muted-foreground">{budget ? "Delivery allocation" : "Allocation not configured"}</p></div>
                 <div className="min-w-0 space-y-4">
-                <BudgetProgress label={client.name} allocated={budget?.allocatedSeconds ?? null} spent={spent} start={start} end={end} />
+                <div className="space-y-4"><p className="text-xs font-medium text-muted-foreground">Hour services</p>{SERVICE_ALLOCATIONS.filter((service) => service.kind === "hours").map((service) => { const allocation = serviceAllocations.find((item) => item.serviceType === service.key); const allocated = allocation?.allocatedSeconds ?? (service.key === "account_manager_hours" ? budget?.allocatedSeconds ?? null : null); return <div key={service.key}><p className="mb-1 text-sm font-medium">{service.label}</p><BudgetProgress label={service.label} allocated={allocated} spent={serviceSpent[service.key] ?? 0} start={start} end={end} /></div>; })}</div>
+                <div className="grid gap-2 sm:grid-cols-2"><p className="col-span-full text-xs font-medium text-muted-foreground">Monthly service quotas</p>{SERVICE_ALLOCATIONS.filter((service) => service.kind === "quantity").map((service) => { const allocation = serviceAllocations.find((item) => item.serviceType === service.key); return <div key={service.key} className="flex items-center justify-between rounded-md bg-muted/30 px-3 py-2 text-sm"><span>{service.label}</span><span className="font-mono tabular-nums">{allocation?.allocatedQuantity ?? 0} allocated</span></div>; })}</div>
                 {canManage ? (
                   <details><summary className="w-fit cursor-pointer text-xs text-muted-foreground hover:text-foreground">{budget ? "Edit allocation" : "Set allocation"}</summary>
-                  <form action={setClientTimeBudget} className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+                  <form action={setClientServiceAllocations} className="mt-3 grid gap-3 rounded-md bg-muted/30 p-3 sm:grid-cols-2">
                     <input type="hidden" name="clientAccountId" value={client.id} />
-                    <div className="space-y-1"><Label htmlFor={`budget-hours-${client.id}`} className="text-xs">Allocated hours</Label><Input id={`budget-hours-${client.id}`} name="hours" type="number" min="0" max="10000" step="0.25" required defaultValue={budget ? budget.allocatedSeconds / 3600 : ""} placeholder="e.g. 20" /></div>
-                    <div className="space-y-1"><Label htmlFor={`budget-start-${client.id}`} className="text-xs">Period starts</Label><Input id={`budget-start-${client.id}`} name="periodStart" type="date" defaultValue={dateInput(start)} required /></div>
-                    <div className="space-y-1"><Label htmlFor={`budget-end-${client.id}`} className="text-xs">Period ends</Label><Input id={`budget-end-${client.id}`} name="periodEnd" type="date" defaultValue={dateInput(end)} required /></div>
-                    <Button type="submit" size="sm">Save allocation</Button>
+                    <div className="space-y-1"><Label htmlFor={`allocation-start-${client.id}`} className="text-xs">Period starts</Label><Input id={`allocation-start-${client.id}`} name="periodStart" type="date" defaultValue={dateInput(start)} required /></div>
+                    <div className="space-y-1"><Label htmlFor={`allocation-end-${client.id}`} className="text-xs">Period ends</Label><Input id={`allocation-end-${client.id}`} name="periodEnd" type="date" defaultValue={dateInput(end)} required /></div>
+                    {SERVICE_ALLOCATIONS.map((service) => <div key={service.key} className="space-y-1"><Label htmlFor={`${service.kind}-${service.key}-${client.id}`} className="text-xs">{service.label}</Label><Input id={`${service.kind}-${service.key}-${client.id}`} name={`${service.kind === "hours" ? "hours" : "quantity"}_${service.key}`} type="number" min="0" step={service.kind === "hours" ? "0.25" : "1"} defaultValue={service.kind === "hours" ? ((serviceAllocations.find((item) => item.serviceType === service.key)?.allocatedSeconds ?? 0) / 3600 || "") : (serviceAllocations.find((item) => item.serviceType === service.key)?.allocatedQuantity || "")} placeholder={service.kind === "hours" ? "Hours" : "Pieces"} /></div>)}
+                    <Button type="submit" size="sm" className="w-fit">Save monthly allocations</Button>
                   </form>
                   </details>
                 ) : null}

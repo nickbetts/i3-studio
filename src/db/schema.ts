@@ -399,6 +399,7 @@ export const timeEntries = pgTable(
       .references(() => clientAccounts.id, { onDelete: "cascade" }),
     projectId: text("project_id").references(() => projects.id, { onDelete: "set null" }),
     taskId: text("task_id").references(() => tasks.id, { onDelete: "set null" }),
+    serviceType: text("service_type").notNull().default("account_manager_hours"),
     startedAt: timestamp("started_at", { mode: "date" }).notNull(),
     stoppedAt: timestamp("stopped_at", { mode: "date" }).notNull(),
     durationSeconds: integer("duration_seconds").notNull(),
@@ -426,6 +427,7 @@ export const activeTimers = pgTable(
       .references(() => clientAccounts.id, { onDelete: "cascade" }),
     projectId: text("project_id").references(() => projects.id, { onDelete: "set null" }),
     taskId: text("task_id").references(() => tasks.id, { onDelete: "set null" }),
+    serviceType: text("service_type").notNull().default("account_manager_hours"),
     startedAt: timestamp("started_at", { mode: "date" }).notNull().defaultNow(),
     note: text("note"),
   },
@@ -448,6 +450,22 @@ export const clientTimeBudgets = pgTable(
     updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("client_time_budget_period_idx").on(t.clientAccountId, t.periodStart)],
+);
+
+export const clientServiceAllocations = pgTable(
+  "client_service_allocation",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    clientAccountId: text("client_account_id").notNull().references(() => clientAccounts.id, { onDelete: "cascade" }),
+    periodStart: timestamp("period_start", { mode: "date" }).notNull(),
+    periodEnd: timestamp("period_end", { mode: "date" }).notNull(),
+    serviceType: text("service_type").notNull(),
+    allocatedSeconds: integer("allocated_seconds").notNull().default(0),
+    allocatedQuantity: integer("allocated_quantity").notNull().default(0),
+    createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("client_service_allocation_period_idx").on(t.clientAccountId, t.periodStart, t.serviceType), index("client_service_allocation_client_idx").on(t.clientAccountId, t.periodStart)],
 );
 
 // ---------------------------------------------------------------------------
