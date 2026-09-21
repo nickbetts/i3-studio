@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
-import { activeTimers, clientServiceAllocations, clientTimeBudgets, projects, tasks, timeEntries } from "@/db/schema";
+import { activeTimers, clientServiceAllocations, clientTimeBudgets, projects, taskActivities, tasks, timeEntries } from "@/db/schema";
 import { auditLog } from "@/lib/audit";
 import { requireAgencyUser, requireManager } from "@/lib/auth-helpers";
 import { SERVICE_ALLOCATIONS, serviceAllocation } from "@/lib/service-allocations";
@@ -54,6 +54,7 @@ export async function stopTimer(): Promise<{ ok: boolean; error?: string; durati
   const durationSeconds = Math.max(1, Math.round((stoppedAt.getTime() - active.startedAt.getTime()) / 1000));
   await db.delete(activeTimers).where(eq(activeTimers.id, active.id));
   const [entry] = await db.insert(timeEntries).values({ userId: actor.id, clientAccountId: active.clientAccountId, projectId: active.projectId, taskId: active.taskId, serviceType: active.serviceType, startedAt: active.startedAt, stoppedAt, durationSeconds, note: active.note }).returning({ id: timeEntries.id });
+  if (active.taskId) await db.insert(taskActivities).values({ taskId: active.taskId, actorUserId: actor.id, action: "time_logged", metadata: { timeEntryId: entry.id, durationSeconds, serviceType: active.serviceType } });
   await auditLog({ actorUserId: actor.id, action: "time.stopped", entityType: "time_entry", entityId: entry.id, clientAccountId: active.clientAccountId, metadata: { durationSeconds, projectId: active.projectId, taskId: active.taskId } });
   revalidatePath("/agency/time");
   revalidatePath("/agency/tasks");

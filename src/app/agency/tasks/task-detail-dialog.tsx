@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { prepareUpload } from "@/lib/upload-client";
+import { formatLoggedTime } from "@/lib/time-format";
+import { serviceAllocation } from "@/lib/service-allocations";
 import { addTaskComment, addTaskDependency, createSubtask, deleteTaskComment, getTaskDetail, updateChecklist, updateTaskDetails, type TaskDetail } from "./actions";
 
 export function TaskDetailDialog({ taskId, title, currentUserId, canEdit }: { taskId: string; title: string; currentUserId: string; canEdit: boolean }) {
@@ -63,6 +65,17 @@ export function TaskDetailDialog({ taskId, title, currentUserId, canEdit }: { ta
       const refreshed = await getTaskDetail(taskId);
       setDetail(refreshed);
     });
+  }
+
+  function activityText(item: TaskDetail["activities"][number]) {
+    if (item.action === "time_logged") {
+      const seconds = typeof item.metadata?.durationSeconds === "number" ? item.metadata.durationSeconds : 0;
+      const service = typeof item.metadata?.serviceType === "string" ? serviceAllocation(item.metadata.serviceType).label : "task work";
+      return `logged ${formatLoggedTime(seconds)} to ${service}`;
+    }
+    if (item.action === "priority_changed") return `changed priority to ${String(item.metadata?.to ?? "unknown")}`;
+    if (item.action === "due_date_changed") return item.metadata?.to ? `changed due date to ${new Date(String(item.metadata.to)).toLocaleDateString("en-GB")}` : "cleared the due date";
+    return item.action.replaceAll("_", " ");
   }
 
   return (
@@ -169,7 +182,7 @@ export function TaskDetailDialog({ taskId, title, currentUserId, canEdit }: { ta
               </div>
               </TabsContent>
               <TabsContent value="activity" className="space-y-3">
-                {detail.activities.length === 0 ? <p className="py-5 text-sm text-muted-foreground">No activity yet.</p> : detail.activities.map((item) => <div key={item.id} className="border-l-2 border-primary/40 pl-3"><p className="text-sm">{item.actorName ?? "Someone"} {item.action.replaceAll("_", " ")}</p><time className="text-xs text-muted-foreground" dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString()}</time></div>)}
+                {detail.activities.length === 0 ? <p className="py-5 text-sm text-muted-foreground">No activity yet.</p> : detail.activities.map((item) => <div key={item.id} className="border-l-2 border-primary/40 pl-3"><p className="text-sm"><span className="font-medium">{item.actorName ?? "Someone"}</span> {activityText(item)}</p><time className="text-xs text-muted-foreground" dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString()}</time></div>)}
               </TabsContent>
             </Tabs>
           )}

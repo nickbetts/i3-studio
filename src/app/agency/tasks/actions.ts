@@ -92,6 +92,26 @@ export async function updateTaskStatus(taskId: string, status: "open" | "in_prog
   revalidatePath("/portal");
 }
 
+export async function updateTaskPriority(taskId: string, priority: "low" | "medium" | "high" | "urgent"): Promise<void> {
+  const access = await requireTaskAccess(taskId);
+  if (!access || access.task.priority === priority) return;
+  await db.update(tasks).set({ priority, updatedAt: new Date() }).where(eq(tasks.id, taskId));
+  await recordActivity(taskId, access.actor.id, "priority_changed", { from: access.task.priority, to: priority });
+  await auditLog({ actorUserId: access.actor.id, action: "task.priority_updated", entityType: "task", entityId: taskId, clientAccountId: access.task.clientAccountId, metadata: { from: access.task.priority, to: priority } });
+  revalidatePath("/agency/tasks");
+}
+
+export async function updateTaskDueDate(taskId: string, dueDate: string | null): Promise<void> {
+  const access = await requireTaskAccess(taskId);
+  if (!access) return;
+  const nextDueDate = dueDate ? new Date(`${dueDate}T12:00:00`) : null;
+  if (nextDueDate && Number.isNaN(nextDueDate.getTime())) return;
+  await db.update(tasks).set({ dueDate: nextDueDate, updatedAt: new Date() }).where(eq(tasks.id, taskId));
+  await recordActivity(taskId, access.actor.id, "due_date_changed", { from: access.task.dueDate?.toISOString() ?? null, to: nextDueDate?.toISOString() ?? null });
+  await auditLog({ actorUserId: access.actor.id, action: "task.due_date_updated", entityType: "task", entityId: taskId, clientAccountId: access.task.clientAccountId, metadata: { dueDate: nextDueDate?.toISOString() ?? null } });
+  revalidatePath("/agency/tasks");
+}
+
 export async function updateTaskAssignees(taskId: string, assignedToUserIds: string[]): Promise<void> {
   const actor = await requireManager();
   const task = await db.query.tasks.findFirst({ where: eq(tasks.id, taskId) });
@@ -228,7 +248,7 @@ export type TaskDetail = {
   dependencies: { id: string; title: string; status: string }[];
   dependencyOptions: { id: string; title: string }[];
   canManage: boolean;
-  activities: { id: string; action: string; createdAt: string; actorName: string | null }[];
+  activities: { id: string; action: string; metadata: Record<string, unknown> | null; createdAt: string; actorName: string | null }[];
   comments: { id: string; body: string; authorName: string | null; authorUserId: string | null; createdAt: string; attachmentUrl: string | null; attachmentName: string | null }[];
 };
 
@@ -255,7 +275,7 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
     dependencies: dependencies.map((item) => ({ id: item.dependsOnTask.id, title: item.dependsOnTask.title, status: item.dependsOnTask.status })),
     dependencyOptions: dependencyOptions.filter((item) => item.id !== taskId && !dependencies.some((dependency) => dependency.dependsOnTaskId === item.id)),
     canManage: actor.role === "admin" || actor.role === "account_manager",
-    activities: activities.map((item) => ({ id: item.id, action: item.action, createdAt: item.createdAt.toISOString(), actorName: item.actor?.name ?? item.actor?.email ?? null })),
+    activities: activities.map((item) => ({ id: item.id, action: item.action, metadata: item.metadata && typeof item.metadata === "object" ? item.metadata as Record<string, unknown> : null, createdAt: item.createdAt.toISOString(), actorName: item.actor?.name ?? item.actor?.email ?? null })),
     comments: comments.map((comment) => ({ id: comment.id, body: comment.body, authorName: comment.author?.name ?? comment.author?.email ?? null, authorUserId: comment.authorUserId, createdAt: comment.createdAt.toISOString(), attachmentUrl: comment.attachmentUrl, attachmentName: comment.attachmentName })),
   };
 }

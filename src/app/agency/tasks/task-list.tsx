@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CalendarDays, Clock3 } from "lucide-react";
+import { Clock3 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,8 @@ import { TaskDetailDialog } from "./task-detail-dialog";
 import { TaskStatus } from "./task-status";
 import { TaskTimerButton } from "./task-timer-button";
 import { formatLoggedTime } from "@/lib/time-format";
-import { PriorityBadge } from "@/components/status-badge";
+import { TaskPriorityPicker } from "./task-priority-picker";
+import { TaskDueDatePicker } from "./task-due-date-picker";
 
 export type TaskRow = {
   id: string;
@@ -33,11 +34,6 @@ export type TaskRow = {
 };
 
 type Member = { id: string; name: string | null; email: string };
-
-function dueDateText(value: string | null) {
-  if (!value) return "No due date";
-  return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-}
 
 export function TaskList({ rows, team, currentUserId, canManage }: { rows: TaskRow[]; team: Member[]; currentUserId: string; canManage: boolean }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -105,8 +101,8 @@ export function TaskList({ rows, team, currentUserId, canManage }: { rows: TaskR
               </div>
             </div>
             <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
-              <PriorityBadge priority={task.priority} />
-              <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs ring-1 ring-inset ${task.dueLabel === "overdue" ? "bg-rose-500/15 text-rose-300 ring-rose-500/30" : task.dueLabel === "soon" ? "bg-amber-500/15 text-amber-300 ring-amber-500/30" : "bg-muted text-muted-foreground ring-border"}`}><CalendarDays className="size-3" />{task.dueLabel === "overdue" ? "Overdue · " : task.dueLabel === "soon" ? "Due soon · " : ""}{dueDateText(task.dueDate)}</span>
+              <TaskPriorityPicker taskId={task.id} value={task.priority} editable={canEditTask} />
+              <TaskDueDatePicker taskId={task.id} value={task.dueDate} editable={canEditTask} />
               {task.timeSeconds > 0 ? <Badge variant="outline" className="gap-1 font-mono tabular-nums"><Clock3 className="size-3" />{formatLoggedTime(task.timeSeconds)}</Badge> : null}
               <TaskTimerButton clientAccountId={task.clientAccountId} projectId={task.projectId} taskId={task.id} clientName={task.clientName} projectName={task.projectName} taskTitle={task.title} />
               <TaskAssignee taskId={task.id} assignedToUserIds={task.assignedToUserIds} team={team} editable={canManage} />
