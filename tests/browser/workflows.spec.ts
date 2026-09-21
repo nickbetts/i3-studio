@@ -4,7 +4,7 @@ import { del } from "@vercel/blob";
 import bcrypt from "bcryptjs";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../../src/db";
-import { organizations, users, clientAccounts, contentTemplates, contentItems, contentVersions, auditLogs, projects, designAssets, annotations, annotationComments, referenceFiles, projectTemplates, tasks, clientTimeBudgets, clientServiceAllocations, timeEntries, tickets, ticketMessages } from "../../src/db/schema";
+import { organizations, users, clientAccounts, contentTemplates, contentItems, contentVersions, auditLogs, projects, designAssets, annotations, annotationComments, referenceFiles, projectTemplates, tasks, taskAssignments, clientTimeBudgets, clientServiceAllocations, timeEntries, tickets, ticketMessages } from "../../src/db/schema";
 import { monthWindow } from "../../src/lib/time-budget";
 
 const run = randomUUID();
@@ -212,9 +212,14 @@ test("admin creates a task, filters by assignee, and reassigns it to themselves"
   await expect(page.getByText(taskTitle, { exact: true })).toBeVisible();
   await expect(page.getByText("Overdue", { exact: true })).toBeVisible();
   const row = page.locator('[data-testid^="task-"]', { has: page.getByText(taskTitle, { exact: true }) }).first();
-  await row.getByLabel("Assignee", { exact: true }).click();
-  await page.getByRole("option", { name: "E2E admin", exact: true }).click();
+  await row.getByLabel("Assignees", { exact: true }).click();
+  await page.getByRole("checkbox", { name: "E2E admin", exact: true }).click();
   await expect(page.getByText("Assignee updated")).toBeVisible();
+  await page.getByRole("checkbox", { name: "E2E account_manager", exact: true }).click();
+  await expect(page.getByText("Assignees updated")).toBeVisible();
+  await expect(row.getByLabel("Assignees", { exact: true })).toContainText("2 assigned");
+  const savedAssignments = await db.query.taskAssignments.findMany({ where: eq(taskAssignments.taskId, (await db.query.tasks.findFirst({ where: eq(tasks.title, taskTitle) }))!.id) });
+  expect(savedAssignments.map((assignment) => assignment.userId)).toEqual(expect.arrayContaining([actors.admin.id, actors.account_manager.id]));
 
   await page.goto("/agency/tasks");
   await expect(page.getByText(taskTitle, { exact: true })).toBeVisible();

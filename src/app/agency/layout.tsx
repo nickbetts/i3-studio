@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
 import type { NavItem } from "@/components/sidebar-nav";
 import { db } from "@/db";
-import { activeTimers, contentItems, designAssets, documents, tasks, tickets, users } from "@/db/schema";
+import { activeTimers, contentItems, designAssets, documents, taskAssignments, tasks, tickets, users } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
 import { isPreviewing } from "@/lib/auth-helpers";
 import { and, count, eq, inArray } from "drizzle-orm";
@@ -24,7 +24,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
     user.role === "content_writer"
       ? db.select({ value: count() }).from(contentItems).where(and(eq(contentItems.assignedToUserId, user.id), inArray(contentItems.status, ["am_changes", "client_changes"])))
       : db.select({ value: count() }).from(contentItems).where(eq(contentItems.status, "pending_am")),
-    db.select({ value: count() }).from(tasks).where(and(eq(tasks.assignedToUserId, user.id), inArray(tasks.status, ["open", "in_progress", "blocked"]))),
+    db.select({ value: count() }).from(taskAssignments).innerJoin(tasks, eq(taskAssignments.taskId, tasks.id)).where(and(eq(taskAssignments.userId, user.id), inArray(tasks.status, ["open", "in_progress", "blocked"]))),
     db.query.clientAccounts.findMany({ columns: { id: true, name: true }, orderBy: (client, { asc }) => [asc(client.name)] }),
     db.query.projects.findMany({ columns: { id: true, clientAccountId: true, name: true }, orderBy: (project, { asc }) => [asc(project.name)] }),
     db.query.tasks.findMany({ columns: { id: true, clientAccountId: true, projectId: true, title: true }, orderBy: (task, { asc }) => [asc(task.title)] }),

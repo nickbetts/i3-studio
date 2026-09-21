@@ -4,7 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
-import { savedTaskViews, taskActivities, taskComments, taskDependencies, tasks } from "@/db/schema";
+import { savedTaskViews, taskActivities, taskAssignments, taskComments, taskDependencies, tasks } from "@/db/schema";
 import { requireAgencyUser, requireManager } from "@/lib/auth-helpers";
 import { auditLog } from "@/lib/audit";
 import { consumeUpload, verifiedUpload } from "@/lib/upload-server";
@@ -15,7 +15,7 @@ const taskSchema = z.object({
   title: z.string().trim().min(2),
   description: z.string().trim().optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]),
-  assignedToUserId: z.string().optional(),
+  assignedToUserIds: z.array(z.string()).default([]),
   dueDate: z.string().optional(),
   recurrenceRule: z.enum(["daily", "weekly", "monthly"]).optional(),
 });
@@ -32,7 +32,7 @@ export async function createTask(formData: FormData): Promise<void> {
     title: formData.get("title"),
     description: formData.get("description") || undefined,
     priority: formData.get("priority") || "medium",
-    assignedToUserId: formData.get("assignedToUserId") || undefined,
+    assignedToUserIds: formData.getAll("assignedToUserIds").map(String).filter(Boolean),
     dueDate: formData.get("dueDate") || undefined,
     recurrenceRule: formData.get("recurrenceRule") || undefined,
   });
@@ -44,12 +44,14 @@ export async function createTask(formData: FormData): Promise<void> {
     title: parsed.data.title,
     description: parsed.data.description,
     priority: parsed.data.priority,
-    assignedToUserId: parsed.data.assignedToUserId || null,
+    assignedToUserId: parsed.data.assignedToUserIds[0] || null,
     dueDate: parsed.data.dueDate ? new Date(`${parsed.data.dueDate}T12:00:00`) : null,
     createdByUserId: actor.id,
     recurrenceRule: parsed.data.recurrenceRule || null,
     recurrenceNextDate: parsed.data.recurrenceRule && parsed.data.dueDate ? new Date(`${parsed.data.dueDate}T12:00:00`) : null,
   }).returning({ id: tasks.id });
+
+  if (parsed.data.assignedToUserIds.length) await db.insert(taskAssignments).values(parsed.data.assignedToUserIds.map((userId) => ({ taskId: task.id, userId }))).onConflictDoNothing();
 
   await recordActivity(task.id, actor.id, "created");
   await auditLog({ actorUserId: actor.id, action: "task.created", entityType: "task", entityId: task.id, clientAccountId: parsed.data.clientAccountId });
@@ -64,7 +66,8 @@ async function requireTaskAccess(taskId: string) {
   const task = await db.query.tasks.findFirst({ where: eq(tasks.id, taskId) });
   if (!task) return null;
   const isManager = actor.role === "admin" || actor.role === "account_manager";
-  if (!isManager && task.assignedToUserId !== actor.id) return null;
+  const assignment = !isManager ? await db.query.taskAssignments.findFirst({ where: and(eq(taskAssignments.taskId, taskId), eq(taskAssignments.userId, actor.id)) }) : null;
+  if (!isManager && !assignment && task.assignedToUserId !== actor.id) return null;
   return { actor, task };
 }
 
@@ -80,6 +83,8 @@ export async function updateTaskStatus(taskId: string, status: "open" | "in_prog
     if (task.recurrenceRule === "weekly") nextDue.setDate(nextDue.getDate() + 7);
     if (task.recurrenceRule === "monthly") nextDue.setMonth(nextDue.getMonth() + 1);
     const [nextTask] = await db.insert(tasks).values({ clientAccountId: task.clientAccountId, projectId: task.projectId, parentTaskId: task.parentTaskId, title: task.title, description: task.description, priority: task.priority, assignedToUserId: task.assignedToUserId, createdByUserId: actor.id, dueDate: nextDue, recurrenceRule: task.recurrenceRule, recurrenceNextDate: nextDue, checklist: task.checklist }).returning({ id: tasks.id });
+    const previousAssignments = await db.query.taskAssignments.findMany({ where: eq(taskAssignments.taskId, taskId) });
+    if (previousAssignments.length) await db.insert(taskAssignments).values(previousAssignments.map((assignment) => ({ taskId: nextTask.id, userId: assignment.userId }))).onConflictDoNothing();
     await recordActivity(nextTask.id, actor.id, "created_from_recurrence", { sourceTaskId: taskId });
   }
   await auditLog({ actorUserId: actor.id, action: "task.status_updated", entityType: "task", entityId: taskId, clientAccountId: task.clientAccountId, metadata: { status } });
@@ -87,13 +92,16 @@ export async function updateTaskStatus(taskId: string, status: "open" | "in_prog
   revalidatePath("/portal");
 }
 
-export async function updateTaskAssignee(taskId: string, assignedToUserId: string | null): Promise<void> {
+export async function updateTaskAssignees(taskId: string, assignedToUserIds: string[]): Promise<void> {
   const actor = await requireManager();
   const task = await db.query.tasks.findFirst({ where: eq(tasks.id, taskId) });
   if (!task) return;
-  await db.update(tasks).set({ assignedToUserId, updatedAt: new Date() }).where(eq(tasks.id, taskId));
-  await recordActivity(taskId, actor.id, "assignee_changed", { assignedToUserId });
-  await auditLog({ actorUserId: actor.id, action: "task.assignee_updated", entityType: "task", entityId: taskId, clientAccountId: task.clientAccountId, metadata: { assignedToUserId } });
+  const uniqueUserIds = [...new Set(assignedToUserIds.filter(Boolean))];
+  await db.delete(taskAssignments).where(eq(taskAssignments.taskId, taskId));
+  if (uniqueUserIds.length) await db.insert(taskAssignments).values(uniqueUserIds.map((userId) => ({ taskId, userId }))).onConflictDoNothing();
+  await db.update(tasks).set({ assignedToUserId: uniqueUserIds[0] ?? null, updatedAt: new Date() }).where(eq(tasks.id, taskId));
+  await recordActivity(taskId, actor.id, "assignees_changed", { assignedToUserIds: uniqueUserIds });
+  await auditLog({ actorUserId: actor.id, action: "task.assignees_updated", entityType: "task", entityId: taskId, clientAccountId: task.clientAccountId, metadata: { assignedToUserIds: uniqueUserIds } });
   revalidatePath("/agency/tasks");
 }
 
@@ -153,6 +161,10 @@ export async function bulkUpdateTasks(taskIds: string[], patch: { status?: "open
   if (patch.status) set.status = patch.status;
   if (patch.assignedToUserId !== undefined) set.assignedToUserId = patch.assignedToUserId;
   await db.update(tasks).set(set).where(inArray(tasks.id, taskIds));
+  if (patch.assignedToUserId !== undefined) {
+    await db.delete(taskAssignments).where(inArray(taskAssignments.taskId, taskIds));
+    if (patch.assignedToUserId) await db.insert(taskAssignments).values(taskIds.map((taskId) => ({ taskId, userId: patch.assignedToUserId! }))).onConflictDoNothing();
+  }
   await auditLog({ actorUserId: actor.id, action: "task.bulk_updated", entityType: "task", entityId: taskIds.join(","), metadata: { count: taskIds.length, ...patch } });
   revalidatePath("/agency/tasks");
   revalidatePath("/portal");
@@ -162,6 +174,8 @@ export async function createSubtask(parentTaskId: string, title: string): Promis
   const access = await requireTaskAccess(parentTaskId);
   if (!access || !title.trim()) return;
   const [subtask] = await db.insert(tasks).values({ clientAccountId: access.task.clientAccountId, projectId: access.task.projectId, parentTaskId, title: title.trim(), priority: access.task.priority, assignedToUserId: access.task.assignedToUserId, createdByUserId: access.actor.id }).returning({ id: tasks.id });
+  const parentAssignments = await db.query.taskAssignments.findMany({ where: eq(taskAssignments.taskId, parentTaskId) });
+  if (parentAssignments.length) await db.insert(taskAssignments).values(parentAssignments.map((assignment) => ({ taskId: subtask.id, userId: assignment.userId }))).onConflictDoNothing();
   await recordActivity(parentTaskId, access.actor.id, "subtask_created", { subtaskId: subtask.id });
   revalidatePath("/agency/tasks");
 }

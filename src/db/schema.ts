@@ -313,6 +313,22 @@ export const tasks = pgTable(
   (t) => [index("task_client_idx").on(t.clientAccountId), index("task_project_idx").on(t.projectId), index("task_parent_idx").on(t.parentTaskId)],
 );
 
+export const taskAssignments = pgTable(
+  "task_assignment",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    taskId: text("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("task_assignment_unique_idx").on(t.taskId, t.userId), index("task_assignment_user_idx").on(t.userId, t.taskId)],
+);
+
+export const taskAssignmentsRelations = relations(taskAssignments, ({ one }) => ({
+  task: one(tasks, { fields: [taskAssignments.taskId], references: [tasks.id] }),
+  user: one(users, { fields: [taskAssignments.userId], references: [users.id] }),
+}));
+
 export const taskDependencies = pgTable(
   "task_dependency",
   {

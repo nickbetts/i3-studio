@@ -23,7 +23,8 @@ export type TaskRow = {
   meta: string;
   priority: "low" | "medium" | "high" | "urgent";
   status: "open" | "in_progress" | "blocked" | "done";
-  assignedToUserId: string | null;
+  assignedToUserIds: string[];
+  assigneeNames: string[];
   timeSeconds: number;
   dueLabel: "overdue" | "soon" | null;
 };
@@ -85,14 +86,14 @@ export function TaskList({ rows, team, currentUserId, canManage }: { rows: TaskR
       ) : null}
 
       {rows.map((task) => {
-        const canEditTask = canManage || task.assignedToUserId === currentUserId;
+        const canEditTask = canManage || task.assignedToUserIds.includes(currentUserId);
         return (
           <div key={task.id} data-testid={`task-${task.id}`} className="flex flex-wrap items-center justify-between gap-3 border-b py-3 last:border-0">
             <div className="flex items-start gap-3">
               {canManage ? <Checkbox className="mt-1" checked={selected.has(task.id)} onCheckedChange={() => toggle(task.id)} aria-label={`Select ${task.title}`} /> : null}
               <div>
                 <TaskDetailDialog taskId={task.id} title={task.title} currentUserId={currentUserId} canEdit={canEditTask} />
-                <p className="text-xs capitalize text-muted-foreground">{task.meta}</p>
+                <p className="text-xs capitalize text-muted-foreground">{task.meta}{task.assigneeNames.length ? ` · ${task.assigneeNames.join(", ")}` : " · unassigned"}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -100,7 +101,7 @@ export function TaskList({ rows, team, currentUserId, canManage }: { rows: TaskR
               {task.dueLabel === "soon" ? <Badge className="bg-amber-500 text-white dark:bg-amber-600">Due soon</Badge> : null}
               {task.timeSeconds > 0 ? <Badge variant="outline" className="font-mono tabular-nums">{formatLoggedTime(task.timeSeconds)}</Badge> : null}
               <TaskTimerButton clientAccountId={task.clientAccountId} projectId={task.projectId} taskId={task.id} clientName={task.clientName} projectName={task.projectName} taskTitle={task.title} />
-              {canManage ? <TaskAssignee taskId={task.id} assignedToUserId={task.assignedToUserId} team={team} /> : null}
+              {canManage ? <TaskAssignee taskId={task.id} assignedToUserIds={task.assignedToUserIds} team={team} /> : null}
               {canEditTask ? <TaskStatus taskId={task.id} value={task.status} /> : <Badge variant="outline" className="capitalize">{task.status.replace("_", " ")}</Badge>}
             </div>
           </div>
