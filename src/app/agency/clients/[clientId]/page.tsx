@@ -6,20 +6,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
 import { ConfirmButton } from "@/components/confirm-button";
+import { CreatePanel } from "@/components/create-panel";
 import { UploadForm } from "@/components/upload-form";
 import { db } from "@/db";
-import { accountManagerAssignments, clientAccounts, clientTypes, onboardingSubmissions, projects, referenceFiles, tasks, users } from "@/db/schema";
+import { accountManagerAssignments, clientAccounts, clientTypes, onboardingSubmissions, projects, referenceFiles, taskAssignments, tasks, timeEntries, users } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
 import { uploadDocument } from "@/app/agency/files/actions";
 import { uploadReference } from "@/app/portal/(app)/files/actions";
 import { addAccountManager, removeAccountManager, resetClientOnboarding, updateClientDetails } from "../actions";
+import { TaskList, type TaskRow } from "@/app/agency/tasks/task-list";
+import { taskDueLabel } from "@/lib/task-display";
+import { getTimeReport } from "@/lib/time-report";
+import { ClientBudgetOverview } from "./client-budget-overview";
 
 export default async function AgencyClientDashboardPage({ params }: { params: Promise<{ clientId: string }> }) {
   const actor = await requireAgencyUser();
   const { clientId } = await params;
   const client = await db.query.clientAccounts.findFirst({ where: eq(clientAccounts.id, clientId) });
   if (!client) return <Card><CardContent className="pt-6">Client not found.</CardContent></Card>;
-  const [submission, managers, allManagers, types, clientTasks, references, clientProjects] = await Promise.all([
+  const [submission, managers, allManagers, types, clientTasks, references, clientProjects, team, clientTimeEntries, timeReport] = await Promise.all([
     db.query.onboardingSubmissions.findFirst({ where: eq(onboardingSubmissions.clientAccountId, clientId) }),
     db.select({ id: accountManagerAssignments.id, userId: users.id, name: users.name, email: users.email }).from(accountManagerAssignments).innerJoin(users, eq(accountManagerAssignments.userId, users.id)).where(eq(accountManagerAssignments.clientAccountId, clientId)),
     db.query.users.findMany({ where: eq(users.role, "account_manager") }),
@@ -27,10 +32,23 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
     db.query.tasks.findMany({ where: and(eq(tasks.clientAccountId, clientId), inArray(tasks.status, ["open", "in_progress", "blocked"])) }),
     db.query.referenceFiles.findMany({ where: eq(referenceFiles.clientAccountId, clientId), orderBy: desc(referenceFiles.createdAt) }),
     db.query.projects.findMany({ where: eq(projects.clientAccountId, clientId), orderBy: desc(projects.createdAt) }),
+    db.query.users.findMany({ where: inArray(users.role, ["admin", "account_manager", "content_writer"]) }),
+    db.query.timeEntries.findMany({ where: eq(timeEntries.clientAccountId, clientId), columns: { taskId: true, durationSeconds: true } }),
+    getTimeReport(undefined, false, clientId),
   ]);
   const onboardingData = submission?.data && typeof submission.data === "object" ? Object.entries(submission.data as Record<string, unknown>) : [];
   const assignedManagerIds = new Set(managers.map((manager) => manager.userId));
   const availableManagers = allManagers.filter((manager) => !assignedManagerIds.has(manager.id));
+  const taskAssignmentRows = clientTasks.length ? await db.query.taskAssignments.findMany({ where: inArray(taskAssignments.taskId, clientTasks.map((task) => task.id)) }) : [];
+  const timeByTask = new Map<string, number>();
+  for (const entry of clientTimeEntries) if (entry.taskId) timeByTask.set(entry.taskId, (timeByTask.get(entry.taskId) ?? 0) + entry.durationSeconds);
+  const projectName = new Map(clientProjects.map((project) => [project.id, project.name]));
+  const taskRows: TaskRow[] = clientTasks.map((task) => {
+    const assignmentIds = taskAssignmentRows.filter((assignment) => assignment.taskId === task.id).map((assignment) => assignment.userId);
+    const assignedToUserIds = assignmentIds.length ? assignmentIds : task.assignedToUserId ? [task.assignedToUserId] : [];
+    return { id: task.id, title: task.title, clientAccountId: client.id, projectId: task.projectId, clientName: client.name, projectName: task.projectId ? projectName.get(task.projectId) ?? null : null, meta: task.projectId ? projectName.get(task.projectId) ?? "Unknown project" : "Client task", priority: task.priority, dueDate: task.dueDate?.toISOString() ?? null, status: task.status, assignedToUserIds, assigneeNames: assignedToUserIds.map((id) => team.find((member) => member.id === id)?.name || team.find((member) => member.id === id)?.email || "Unknown"), timeSeconds: timeByTask.get(task.id) ?? 0, dueLabel: taskDueLabel(task.dueDate, task.status) };
+  });
+  const budgetRow = timeReport.rows[0];
 
   return (
     <div className="space-y-6">
@@ -114,22 +132,19 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
               ) : null}
             </div>
 
-            <div>
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground">Open tasks</p>
-                <Link href={`/agency/tasks?assignee=all&clientId=${client.id}`} className="text-xs underline-offset-4 hover:underline">View all</Link>
-              </div>
-              {clientTasks.length === 0 ? <p className="text-sm text-muted-foreground">None outstanding.</p> : (
-                <div className="space-y-1">
-                  {clientTasks.slice(0, 5).map((task) => (
-                    <p key={task.id} className="text-sm">{task.title} <span className="text-xs capitalize text-muted-foreground">· {task.priority}</span></p>
-                  ))}
-                </div>
-              )}
-            </div>
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle className="text-base">Time & budgets</CardTitle><CardDescription>Current monthly allocation and delivery usage for this client.</CardDescription></div></div></CardHeader>
+        <CardContent>{budgetRow ? <ClientBudgetOverview clientId={client.id} periodLabel={timeReport.period.label} start={budgetRow.start} end={budgetRow.end} totalAllocatedSeconds={budgetRow.budget?.allocatedSeconds ?? budgetRow.serviceAllocations.reduce((total, allocation) => total + allocation.allocatedSeconds, 0)} serviceAllocations={budgetRow.serviceAllocations} serviceSpent={budgetRow.serviceSpent} /> : <p className="text-sm text-muted-foreground">No allocation data available.</p>}</CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle className="text-base">Tasks</CardTitle><CardDescription>{taskRows.length} open task{taskRows.length === 1 ? "" : "s"} for this client.</CardDescription></div><Button variant="outline" size="sm" asChild><Link href={`/agency/tasks?assignee=all&clientId=${client.id}`}>Open task workspace</Link></Button></div></CardHeader>
+        <CardContent>{taskRows.length ? <TaskList rows={taskRows} team={team} currentUserId={actor.id} canManage={actor.role === "admin" || actor.role === "account_manager"} /> : <p className="text-sm text-muted-foreground">No open tasks for this client.</p>}</CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle className="text-base">Projects</CardTitle><CardDescription>{clientProjects.length} project{clientProjects.length === 1 ? "" : "s"} for this client.</CardDescription></CardHeader>
@@ -147,15 +162,15 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
         </CardContent>
       </Card>
 
-      <Card>
+      <CreatePanel title="Upload for client approval"><Card>
         <CardHeader><CardTitle className="text-base">Upload for client approval</CardTitle><CardDescription>This upload is performed by the agency and appears in the client&apos;s Approvals area.</CardDescription></CardHeader>
         <CardContent><UploadForm action={uploadDocument} fixedClientId={client.id} kind="document" submitLabel="Upload for approval" /></CardContent>
-      </Card>
+      </Card></CreatePanel>
 
       <Card>
         <CardHeader><CardTitle className="text-base">Reference files</CardTitle><CardDescription>Files the client shared, plus anything the team adds for them.</CardDescription></CardHeader>
         <CardContent className="space-y-4">
-          <UploadForm action={uploadReference} fixedClientId={client.id} kind="reference" submitLabel="Upload reference" />
+          <CreatePanel title="Add reference file"><UploadForm action={uploadReference} fixedClientId={client.id} kind="reference" submitLabel="Upload reference" /></CreatePanel>
           {references.length === 0 ? <p className="text-sm text-muted-foreground">No reference files yet.</p> : (
             <div className="divide-y divide-border/60">
               {references.map((ref) => (
