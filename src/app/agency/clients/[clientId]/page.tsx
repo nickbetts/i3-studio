@@ -68,7 +68,7 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
         <Card>
           <CardHeader><CardTitle className="text-base">Onboarding information</CardTitle><CardDescription>Everything the client has submitted through the wizard.</CardDescription></CardHeader>
           <CardContent className="space-y-3">
@@ -134,8 +134,6 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
 
           </CardContent>
         </Card>
-      </div>
-
       <Card>
         <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle className="text-base">Time & budgets</CardTitle><CardDescription>Current monthly allocation and delivery usage for this client.</CardDescription></div></div></CardHeader>
         <CardContent>{budgetRow ? <ClientBudgetOverview clientId={client.id} periodLabel={timeReport.period.label} start={budgetRow.start} end={budgetRow.end} totalAllocatedSeconds={budgetRow.budget?.allocatedSeconds ?? budgetRow.serviceAllocations.reduce((total, allocation) => total + allocation.allocatedSeconds, 0)} serviceAllocations={budgetRow.serviceAllocations} serviceSpent={budgetRow.serviceSpent} /> : <p className="text-sm text-muted-foreground">No allocation data available.</p>}</CardContent>
@@ -185,6 +183,7 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
           )}
         </CardContent>
       </Card>
+    </div>
     </div>
   );
 }
