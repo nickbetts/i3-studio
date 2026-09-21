@@ -23,11 +23,12 @@ export type AllocationClient = {
 
 type AllocationAction = (formData: FormData) => Promise<void>;
 
-export function ServiceAllocationEditor({ clients, action }: { clients: AllocationClient[]; action: AllocationAction }) {
-  const [selectedId, setSelectedId] = useState(clients[0]?.id ?? "");
+export function ServiceAllocationEditor({ clients, action, initialClientId }: { clients: AllocationClient[]; action: AllocationAction; initialClientId?: string }) {
+  const initialClient = clients.find((client) => client.id === initialClientId) ?? clients[0];
+  const [selectedId, setSelectedId] = useState(initialClient?.id ?? "");
   const [query, setQuery] = useState("");
-  const [totalHours, setTotalHours] = useState(clients[0]?.totalHours ?? 0);
-  const [splitHours, setSplitHours] = useState(clients[0]?.serviceAllocations.filter((item) => SERVICE_ALLOCATIONS.find((service) => service.key === item.serviceType)?.kind === "hours").reduce((total, item) => total + item.allocatedSeconds / 3600, 0) ?? 0);
+  const [totalHours, setTotalHours] = useState(initialClient?.totalHours ?? 0);
+  const [splitHours, setSplitHours] = useState(initialClient?.serviceAllocations.filter((item) => SERVICE_ALLOCATIONS.find((service) => service.key === item.serviceType)?.kind === "hours").reduce((total, item) => total + item.allocatedSeconds / 3600, 0) ?? 0);
   const selected = clients.find((client) => client.id === selectedId) ?? null;
   const filteredClients = useMemo(() => clients.filter((client) => client.name.toLowerCase().includes(query.trim().toLowerCase())), [clients, query]);
   const selectedValues = selected ? Object.fromEntries(selected.serviceAllocations.map((item) => [item.serviceType, item])) : {};

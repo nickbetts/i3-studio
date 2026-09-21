@@ -247,6 +247,45 @@ test("admin creates a task, filters by assignee, and reassigns it to themselves"
   await expect(page.getByText(taskTitle, { exact: true })).toBeVisible();
 });
 
+test("client oversight uses independent unequal columns and single-line desktop task controls", async ({ page }) => {
+  const layoutTaskId = randomUUID();
+  const title = "Review the full delivery schedule with the client before the campaign launches";
+  await db.insert(tasks).values({ id: layoutTaskId, clientAccountId: clientId, projectId, title, priority: "urgent", dueDate: new Date("2026-01-01T12:00:00Z"), assignedToUserId: actors.admin.id });
+  await db.insert(timeEntries).values({ userId: actors.admin.id, clientAccountId: clientId, taskId: layoutTaskId, startedAt: new Date(), stoppedAt: new Date(), durationSeconds: 3661 });
+  await login(page, "admin");
+  await page.goto(`/agency/clients/${clientId}`);
+  const taskSection = page.getByTestId("client-task-section");
+  const budgetSection = page.getByTestId("client-budget-section");
+  const context = page.getByRole("complementary", { name: "Client context" });
+  const row = page.getByTestId(`task-${layoutTaskId}`);
+  for (const width of [1920, 1440, 1280, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(row).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    if (width >= 1440) {
+      const work = (await page.getByTestId("client-work-column").boundingBox())!;
+      const sidebar = (await context.boundingBox())!;
+      expect(work.width).toBeGreaterThan(sidebar.width * 2);
+      expect(Math.abs(work.y - sidebar.y)).toBeLessThan(2);
+      const taskBounds = (await taskSection.boundingBox())!;
+      expect(taskBounds.y).toBeLessThan(220);
+      const budgetTop = await budgetSection.evaluate((element) => element.getBoundingClientRect().top + window.scrollY);
+      await context.locator("summary").filter({ hasText: "Onboarding information" }).click();
+      expect(await budgetSection.evaluate((element) => element.getBoundingClientRect().top + window.scrollY)).toBe(budgetTop);
+      await context.locator("summary").filter({ hasText: "Onboarding information" }).click();
+    }
+    if (width >= 1280) {
+      const controls = await row.getByTestId("task-row-controls").evaluate((element) => [...element.children].map((child) => { const rect = child.getBoundingClientRect(); return rect.y + rect.height / 2; }));
+      expect(Math.max(...controls) - Math.min(...controls)).toBeLessThan(3);
+      expect(await row.evaluate((element) => element.scrollWidth <= element.parentElement!.clientWidth + 1)).toBe(true);
+    }
+    await page.screenshot({ path: `test-results/client-layout-${width}.png`, fullPage: true });
+  }
+  await row.getByRole("button", { name: title, exact: true }).click();
+  await expect(page.getByRole("dialog").getByRole("heading", { name: title, exact: true })).toBeVisible();
+});
+
 test("full interface audit across agency, portal and public routes", async ({ page }) => {
   test.skip(!process.env.UI_AUDIT, "Explicit visual audit only");
   test.setTimeout(300_000);
@@ -277,6 +316,12 @@ test("full interface audit across agency, portal and public routes", async ({ pa
         await page.evaluate(() => document.fonts.ready);
         const problem = await page.evaluate(() => ({ overflow: document.documentElement.scrollWidth > innerWidth + 1, error: document.body.innerText.includes("Application error:") }));
         if ((response?.status() ?? 500) >= 400 || problem.overflow || problem.error) issues.push(`${width} ${path}: ${response?.status()} ${JSON.stringify(problem)}`);
+        if (process.env.UI_AUDIT === "verified" && path === `/agency/clients/${clientId}`) {
+          const clientTask = page.locator(`[data-testid="task-${auditTaskId}"]`);
+          await expect(clientTask).toBeVisible();
+          await expect(clientTask.getByTestId("task-priority-picker")).toBeVisible();
+          await expect(page.getByTestId("stacked-service-progress")).toBeVisible();
+        }
         const name = path.replaceAll("/", "-").replace(clientId, "client").replace(projectId, "project").replace(itemId, "content");
         await page.screenshot({ path: `test-results/audit-${process.env.UI_AUDIT}/${width}${name}.png`, fullPage: true });
         if (path === "/portal/onboarding") await db.update(clientAccounts).set({ onboardingCompletedAt: new Date() }).where(eq(clientAccounts.id, clientId));

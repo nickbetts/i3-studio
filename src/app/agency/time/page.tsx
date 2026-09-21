@@ -17,10 +17,10 @@ function dateInput(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-export default async function AgencyTimePage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
+export default async function AgencyTimePage({ searchParams }: { searchParams: Promise<{ month?: string; clientId?: string }> }) {
   const user = await requireAgencyUser();
   const canManage = user.role === "admin" || user.role === "account_manager";
-  const { month } = await searchParams;
+  const { month, clientId } = await searchParams;
   const { period, rows, entries, totalSeconds } = await getTimeReport(month);
   const [team, projectsList, tasksList] = await Promise.all([
     db.query.users.findMany({ where: (row, { inArray }) => inArray(row.role, ["admin", "account_manager", "content_writer"]) }),
@@ -40,7 +40,7 @@ export default async function AgencyTimePage({ searchParams }: { searchParams: P
         <div><p className="text-xs text-muted-foreground">Clients with allocations</p><p className="mt-1 text-2xl font-semibold">{rows.filter((row) => row.budget).length}<span className="text-sm font-normal text-muted-foreground"> / {rows.length}</span></p></div>
         <div><p className="text-xs text-muted-foreground">Over budget</p><p className="mt-1 text-2xl font-semibold">{rows.filter((row) => row.budget && row.spent > row.budget.allocatedSeconds).length}</p></div>
       </div>
-        {canManage ? <ServiceAllocationEditor clients={rows.map(({ client, budget, serviceAllocations, spent, start, end, serviceSpent }) => ({ id: client.id, name: client.name, start: dateInput(start), end: dateInput(end), totalHours: (budget?.allocatedSeconds ?? serviceAllocations.filter((item) => item.allocatedSeconds > 0).reduce((total, item) => total + item.allocatedSeconds, 0)) / 3600, spentSeconds: spent, serviceSpent, serviceAllocations })) as AllocationClient[]} action={setClientServiceAllocations} /> : null}
+        {canManage ? <ServiceAllocationEditor initialClientId={clientId} clients={rows.map(({ client, budget, serviceAllocations, spent, start, end, serviceSpent }) => ({ id: client.id, name: client.name, start: dateInput(start), end: dateInput(end), totalHours: (budget?.allocatedSeconds ?? serviceAllocations.filter((item) => item.allocatedSeconds > 0).reduce((total, item) => total + item.allocatedSeconds, 0)) / 3600, spentSeconds: spent, serviceSpent, serviceAllocations })) as AllocationClient[]} action={setClientServiceAllocations} /> : null}
       <Card>
         <CardHeader><CardTitle className="text-base">Time ledger · {period.label}</CardTitle><CardDescription>{entries.length} time {entries.length === 1 ? "entry" : "entries"}.</CardDescription></CardHeader>
         <CardContent>

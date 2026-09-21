@@ -35,7 +35,7 @@ export type TaskRow = {
 
 type Member = { id: string; name: string | null; email: string };
 
-export function TaskList({ rows, team, currentUserId, canManage }: { rows: TaskRow[]; team: Member[]; currentUserId: string; canManage: boolean }) {
+export function TaskList({ rows, team, currentUserId, canManage, compact = false }: { rows: TaskRow[]; team: Member[]; currentUserId: string; canManage: boolean; compact?: boolean }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, start] = useTransition();
 
@@ -65,7 +65,7 @@ export function TaskList({ rows, team, currentUserId, canManage }: { rows: TaskR
   }
 
   return (
-    <div className="space-y-2">
+    <div className={compact ? "space-y-2 overflow-x-auto pb-1" : "space-y-2"}>
       {canManage && selected.size > 0 ? (
         <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 p-2 text-sm">
           <span className="font-medium">{selected.size} selected</span>
@@ -92,7 +92,7 @@ export function TaskList({ rows, team, currentUserId, canManage }: { rows: TaskR
       {rows.map((task) => {
         const canEditTask = canManage || task.assignedToUserIds.includes(currentUserId);
         return (
-          <div key={task.id} data-testid={`task-${task.id}`} className="grid gap-3 border-b py-4 last:border-0 lg:grid-cols-[minmax(15rem,1fr)_auto] lg:items-center">
+          <div key={task.id} data-testid={`task-${task.id}`} className={compact ? "grid gap-3 border-b py-3 last:border-0 md:min-w-[48rem] md:grid-cols-[minmax(8rem,1fr)_auto] md:items-center" : "grid gap-3 border-b py-4 last:border-0 lg:grid-cols-[minmax(15rem,1fr)_auto] lg:items-center"}>
             <div className="flex min-w-0 items-start gap-3">
               {canManage ? <Checkbox className="mt-1" checked={selected.has(task.id)} onCheckedChange={() => toggle(task.id)} aria-label={`Select ${task.title}`} /> : null}
               <div className="min-w-0">
@@ -100,7 +100,7 @@ export function TaskList({ rows, team, currentUserId, canManage }: { rows: TaskR
                 <p className="mt-1 truncate text-xs text-muted-foreground">{task.meta}</p>
               </div>
             </div>
-            <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
+            <div data-testid="task-row-controls" className={compact ? "flex min-w-0 flex-wrap items-center gap-2 md:flex-nowrap md:justify-end md:whitespace-nowrap [&_[data-slot=select-trigger]]:w-28" : "flex min-w-0 flex-wrap items-center gap-2 lg:justify-end"}>
               <TaskPriorityPicker taskId={task.id} value={task.priority} editable={canEditTask} />
               <TaskDueDatePicker taskId={task.id} value={task.dueDate} editable={canEditTask} />
               {task.timeSeconds > 0 ? <Badge variant="outline" className="gap-1 font-mono tabular-nums"><Clock3 className="size-3" />{formatLoggedTime(task.timeSeconds)}</Badge> : null}

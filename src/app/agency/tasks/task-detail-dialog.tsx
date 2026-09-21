@@ -80,7 +80,7 @@ export function TaskDetailDialog({ taskId, title, currentUserId, canEdit }: { ta
 
   return (
     <>
-      <button type="button" className="text-left font-medium underline-offset-4 hover:underline" onClick={() => setOpen(true)}>{title}</button>
+      <button type="button" title={title} className="block max-w-full truncate text-left font-medium underline-offset-4 hover:underline" onClick={() => setOpen(true)}>{title}</button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>

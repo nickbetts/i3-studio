@@ -17,6 +17,7 @@ import { requireAgencyUser } from "@/lib/auth-helpers";
 import { createTask, saveTaskView } from "./actions";
 import { TaskFilterSelect } from "./task-filter-select";
 import { TaskList, type TaskRow } from "./task-list";
+import { taskDueLabel } from "@/lib/task-display";
 
 const STATUS_OPTIONS = [
   { value: "open_items", label: "Open (not done)" },
@@ -40,18 +41,6 @@ const SORT_OPTIONS = [
 ];
 const PRIORITY_RANK: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
 const STATUS_RANK: Record<string, number> = { open: 0, in_progress: 1, blocked: 2, done: 3 };
-
-function dueLabel(dueDate: Date | null, status: string): TaskRow["dueLabel"] {
-  if (!dueDate || status === "done") return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const due = new Date(dueDate);
-  due.setHours(0, 0, 0, 0);
-  const diffDays = Math.round((due.getTime() - today.getTime()) / 86_400_000);
-  if (diffDays < 0) return "overdue";
-  if (diffDays <= 1) return "soon";
-  return null;
-}
 
 export default async function AgencyTasksPage({ searchParams }: { searchParams: Promise<{ assignee?: string; clientId?: string; projectId?: string; status?: string; priority?: string; sort?: string }> }) {
   const user = await requireAgencyUser();
@@ -108,7 +97,7 @@ export default async function AgencyTasksPage({ searchParams }: { searchParams: 
     assignedToUserIds: effectiveAssigneeIds,
     assigneeNames: effectiveAssigneeIds.map((id) => team.find((member) => member.id === id)?.name || team.find((member) => member.id === id)?.email || "Unknown"),
     timeSeconds: timeByTask.get(task.id) ?? 0,
-    dueLabel: dueLabel(task.dueDate, task.status),
+    dueLabel: taskDueLabel(task.dueDate, task.status),
     });
   });
 

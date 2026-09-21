@@ -203,6 +203,19 @@
 .workspace-content > div > [data-slot="card"] > [data-slot="card-header"],
 .workspace-content > div > [data-slot="card"] > [data-slot="card-content"] { padding-inline: 0; }
 .workspace-content [data-slot="card-title"] { letter-spacing: 0; }
+.workspace-content:has(> .client-overview) { max-width: none; }
+.client-context form { grid-template-columns: minmax(0, 1fr); }
+.client-context form > * { grid-column: auto; }
+.client-overview-column > [data-slot="card"],
+.client-overview-column > details > [data-slot="card"] {
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+  border-top: 1px solid var(--border);
+}
+.client-overview-column > [data-slot="card"] > [data-slot="card-header"],
+.client-overview-column > [data-slot="card"] > [data-slot="card-content"],
+.client-overview-column > details > [data-slot="card"] > [data-slot="card-content"] { padding-inline: 0; }
 .create-panel [data-slot="card"] { background: transparent; box-shadow: none; }
 .create-panel [data-slot="card-header"] { display: none; }
 .create-panel [data-slot="card-content"] { padding-inline: 0; }

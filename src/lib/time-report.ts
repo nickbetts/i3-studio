@@ -4,9 +4,9 @@ import { clientAccounts, clientServiceAllocations, clientTimeBudgets, timeEntrie
 import { requireAgencyUser, requireClientUser } from "@/lib/auth-helpers";
 import { monthWindow, secondsInPeriod } from "@/lib/time-budget";
 
-export async function getTimeReport(month: string | undefined, portal = false) {
+export async function getTimeReport(month: string | undefined, portal = false, agencyClientId?: string) {
   const actor = portal ? await requireClientUser() : await requireAgencyUser();
-  const clientId = portal ? actor.clientAccountId! : null;
+  const clientId = portal ? actor.clientAccountId! : agencyClientId ?? null;
   const period = monthWindow(month);
   const [clients, budgets, serviceAllocations] = await Promise.all([
     db.query.clientAccounts.findMany({ columns: { id: true, name: true }, where: clientId ? eq(clientAccounts.id, clientId) : undefined, orderBy: asc(clientAccounts.name) }),
