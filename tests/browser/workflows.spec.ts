@@ -201,6 +201,8 @@ test("admin creates a task, filters by assignee, and reassigns it to themselves"
   await page.getByLabel("Client", { exact: true }).click();
   await page.getByRole("option", { name: `E2E ${clientId}`, exact: true }).click();
   await page.getByLabel("Task title", { exact: true }).fill(taskTitle);
+  await page.locator("#task-priority").click();
+  await page.getByRole("option", { name: "urgent", exact: true }).click();
   const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
   await page.getByLabel("Due date", { exact: true }).fill(yesterday);
   await page.getByRole("button", { name: "Create task", exact: true }).click();
@@ -210,14 +212,16 @@ test("admin creates a task, filters by assignee, and reassigns it to themselves"
 
   await page.goto("/agency/tasks?assignee=all");
   await expect(page.getByText(taskTitle, { exact: true })).toBeVisible();
-  await expect(page.getByText("Overdue", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Overdue ·/)).toBeVisible();
   const row = page.locator('[data-testid^="task-"]', { has: page.getByText(taskTitle, { exact: true }) }).first();
   await row.getByLabel("Assignees", { exact: true }).click();
   await page.getByRole("checkbox", { name: "E2E admin", exact: true }).click();
   await expect(page.getByText("Assignee updated")).toBeVisible();
   await page.getByRole("checkbox", { name: "E2E account_manager", exact: true }).click();
   await expect(page.getByText("Assignees updated")).toBeVisible();
-  await expect(row.getByLabel("Assignees", { exact: true })).toContainText("2 assigned");
+  await expect(row.locator('[data-slot="avatar-group"]')).toHaveAttribute("aria-label", /E2E admin.*E2E account_manager/);
+  await expect(row.getByText("urgent", { exact: true })).toBeVisible();
+  await expect(row.getByText(/Overdue ·/)).toBeVisible();
   const savedAssignments = await db.query.taskAssignments.findMany({ where: eq(taskAssignments.taskId, (await db.query.tasks.findFirst({ where: eq(tasks.title, taskTitle) }))!.id) });
   expect(savedAssignments.map((assignment) => assignment.userId)).toEqual(expect.arrayContaining([actors.admin.id, actors.account_manager.id]));
 

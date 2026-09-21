@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { CalendarDays, Clock3 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { TaskDetailDialog } from "./task-detail-dialog";
 import { TaskStatus } from "./task-status";
 import { TaskTimerButton } from "./task-timer-button";
 import { formatLoggedTime } from "@/lib/time-format";
+import { PriorityBadge } from "@/components/status-badge";
 
 export type TaskRow = {
   id: string;
@@ -22,6 +24,7 @@ export type TaskRow = {
   projectName: string | null;
   meta: string;
   priority: "low" | "medium" | "high" | "urgent";
+  dueDate: string | null;
   status: "open" | "in_progress" | "blocked" | "done";
   assignedToUserIds: string[];
   assigneeNames: string[];
@@ -30,6 +33,11 @@ export type TaskRow = {
 };
 
 type Member = { id: string; name: string | null; email: string };
+
+function dueDateText(value: string | null) {
+  if (!value) return "No due date";
+  return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
 
 export function TaskList({ rows, team, currentUserId, canManage }: { rows: TaskRow[]; team: Member[]; currentUserId: string; canManage: boolean }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -88,20 +96,20 @@ export function TaskList({ rows, team, currentUserId, canManage }: { rows: TaskR
       {rows.map((task) => {
         const canEditTask = canManage || task.assignedToUserIds.includes(currentUserId);
         return (
-          <div key={task.id} data-testid={`task-${task.id}`} className="flex flex-wrap items-center justify-between gap-3 border-b py-3 last:border-0">
-            <div className="flex items-start gap-3">
+          <div key={task.id} data-testid={`task-${task.id}`} className="grid gap-3 border-b py-4 last:border-0 lg:grid-cols-[minmax(15rem,1fr)_auto] lg:items-center">
+            <div className="flex min-w-0 items-start gap-3">
               {canManage ? <Checkbox className="mt-1" checked={selected.has(task.id)} onCheckedChange={() => toggle(task.id)} aria-label={`Select ${task.title}`} /> : null}
-              <div>
+              <div className="min-w-0">
                 <TaskDetailDialog taskId={task.id} title={task.title} currentUserId={currentUserId} canEdit={canEditTask} />
-                <p className="text-xs capitalize text-muted-foreground">{task.meta}{task.assigneeNames.length ? ` · ${task.assigneeNames.join(", ")}` : " · unassigned"}</p>
+                <p className="mt-1 truncate text-xs text-muted-foreground">{task.meta}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {task.dueLabel === "overdue" ? <Badge variant="destructive">Overdue</Badge> : null}
-              {task.dueLabel === "soon" ? <Badge className="bg-amber-500 text-white dark:bg-amber-600">Due soon</Badge> : null}
-              {task.timeSeconds > 0 ? <Badge variant="outline" className="font-mono tabular-nums">{formatLoggedTime(task.timeSeconds)}</Badge> : null}
+            <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
+              <PriorityBadge priority={task.priority} />
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs ring-1 ring-inset ${task.dueLabel === "overdue" ? "bg-rose-500/15 text-rose-300 ring-rose-500/30" : task.dueLabel === "soon" ? "bg-amber-500/15 text-amber-300 ring-amber-500/30" : "bg-muted text-muted-foreground ring-border"}`}><CalendarDays className="size-3" />{task.dueLabel === "overdue" ? "Overdue · " : task.dueLabel === "soon" ? "Due soon · " : ""}{dueDateText(task.dueDate)}</span>
+              {task.timeSeconds > 0 ? <Badge variant="outline" className="gap-1 font-mono tabular-nums"><Clock3 className="size-3" />{formatLoggedTime(task.timeSeconds)}</Badge> : null}
               <TaskTimerButton clientAccountId={task.clientAccountId} projectId={task.projectId} taskId={task.id} clientName={task.clientName} projectName={task.projectName} taskTitle={task.title} />
-              {canManage ? <TaskAssignee taskId={task.id} assignedToUserIds={task.assignedToUserIds} team={team} /> : null}
+              <TaskAssignee taskId={task.id} assignedToUserIds={task.assignedToUserIds} team={team} editable={canManage} />
               {canEditTask ? <TaskStatus taskId={task.id} value={task.status} /> : <Badge variant="outline" className="capitalize">{task.status.replace("_", " ")}</Badge>}
             </div>
           </div>
