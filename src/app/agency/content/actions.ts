@@ -54,7 +54,7 @@ async function transition(item: typeof contentItems.$inferSelect, actor: Actor, 
 
 // ----- Templates -----------------------------------------------------------
 export async function createTemplate(formData: FormData): Promise<void> {
-  const actor = await requireAgencyPermission("manage_content");
+  const actor = await requireAgencyPermission("manage_content_templates");
   const name = String(formData.get("name") ?? "").trim();
   const contentType = String(formData.get("contentType") ?? "blog");
   if (name.length < 2) return;
@@ -65,7 +65,7 @@ export async function createTemplate(formData: FormData): Promise<void> {
 }
 
 export async function saveTemplateFields(templateId: string, name: string, fields: ContentField[]): Promise<void> {
-  const actor = await requireAgencyPermission("manage_content");
+  const actor = await requireAgencyPermission("manage_content_templates");
   if (!templateId || name.trim().length < 2) return;
   await db.update(contentTemplates).set({ name: name.trim(), fields, updatedAt: new Date() }).where(eq(contentTemplates.id, templateId));
   await auditLog({ actorUserId: actor.id, action: "content.template_updated", entityType: "content_template", entityId: templateId, metadata: { fieldCount: fields.length } });
@@ -73,7 +73,7 @@ export async function saveTemplateFields(templateId: string, name: string, field
 }
 
 export async function archiveTemplate(formData: FormData): Promise<void> {
-  const actor = await requireAgencyPermission("manage_content");
+  const actor = await requireAgencyPermission("manage_content_templates");
   const templateId = String(formData.get("templateId") ?? "");
   if (!templateId) return;
   await db.update(contentTemplates).set({ archived: true }).where(eq(contentTemplates.id, templateId));
@@ -83,7 +83,7 @@ export async function archiveTemplate(formData: FormData): Promise<void> {
 
 // ----- Content items -------------------------------------------------------
 export async function createContentItem(formData: FormData): Promise<void> {
-  const actor = await requireAgencyPermission("manage_content");
+  const actor = await requireAgencyPermission("manage_content_items");
   const clientAccountId = String(formData.get("clientAccountId") ?? "");
   const templateId = String(formData.get("templateId") ?? "") || null;
   const title = String(formData.get("title") ?? "").trim();
@@ -103,14 +103,14 @@ export async function createContentItem(formData: FormData): Promise<void> {
 }
 
 export async function saveDraft(itemId: string, data: Record<string, unknown>): Promise<void> {
-  const actor = await requireAgencyPermission("manage_content");
+  const actor = await requireAgencyPermission("manage_content_items");
   const item = await db.query.contentItems.findFirst({ where: eq(contentItems.id, itemId) });
   if (!item || !canEditContent(actor, item)) throw new Error("This content cannot be edited.");
   await transition(item, actor, item.status, "draft_saved", "Draft saved", safeContentData(data));
 }
 
 export async function submitForReview(itemId: string, data: Record<string, unknown>): Promise<void> {
-  const actor = await requireAgencyPermission("manage_content");
+  const actor = await requireAgencyPermission("manage_content_items");
   const item = await db.query.contentItems.findFirst({ where: eq(contentItems.id, itemId) });
   if (!item || !canEditContent(actor, item)) throw new Error("This content cannot be submitted.");
   const cleaned = safeContentData(data);
@@ -140,7 +140,7 @@ export async function clientDecision(itemId: string, decision: "approve" | "chan
 
 export async function publishContent(itemId: string): Promise<void> {
   const actor = await getCurrentUser();
-  if (!actor || !(await hasPermission(actor, "manage_content"))) return;
+  if (!actor || !(await hasPermission(actor, "publish_content"))) return;
   const item = await db.query.contentItems.findFirst({ where: eq(contentItems.id, itemId) });
   if (!item || item.status !== "approved") return;
   await transition(item, actor, "published", "published", "Marked as published");

@@ -17,6 +17,9 @@ const DEFAULT_CLIENT_TYPES = [
 
 const DEFAULT_TEAMS = ["Content", "PPC", "Social", "Account Managers", "Design", "Development", "Technical", "Management"];
 
+// Written with the old coarse keys for readability; expandLegacyPermissions() below turns
+// them into the current granular keys before insert (kept in one place so seeded rows and
+// any already-existing rows stay in sync going forward).
 const DEFAULT_CUSTOM_ROLES: { name: string; description: string; permissions: string[] }[] = [
   { name: "Content", description: "Blog, copy and on-site content production.", permissions: ["manage_content", "manage_tasks", "manage_tickets"] },
   { name: "PPC", description: "Paid search and paid social campaigns.", permissions: ["manage_tasks", "manage_tickets", "view_reports"] },
@@ -27,6 +30,29 @@ const DEFAULT_CUSTOM_ROLES: { name: string; description: string; permissions: st
   { name: "Technical", description: "Technical/ops support and integrations.", permissions: ["manage_tasks", "manage_tickets", "manage_settings"] },
   { name: "Management", description: "Agency leadership.", permissions: ["manage_teams", "manage_clients", "manage_users", "manage_billing", "view_reports"] },
 ];
+
+// Maps each retired coarse permission key to the granular keys that replaced it.
+const LEGACY_PERMISSION_EXPANSION: Record<string, string[]> = {
+  manage_content: ["manage_content_templates", "manage_content_items"],
+  manage_tasks: ["create_tasks", "manage_all_tasks", "moderate_task_comments"],
+  manage_tickets: ["reply_tickets", "manage_ticket_status", "assign_tickets"],
+  manage_clients: ["create_clients", "edit_clients", "manage_account_managers", "manage_client_watchers"],
+  manage_designs: ["upload_designs", "upload_design_versions"],
+  manage_billing: ["manage_time_budgets", "manage_service_allocations"],
+  manage_settings: ["manage_client_types", "manage_project_templates", "manage_onboarding_flows"],
+  manage_users: ["create_users", "edit_user_access", "remove_users"],
+  manage_roles: ["manage_roles", "assign_roles"],
+};
+
+function expandLegacyPermissions(keys: string[]): string[] {
+  const expanded = new Set<string>();
+  for (const key of keys) {
+    const mapped = LEGACY_PERMISSION_EXPANSION[key];
+    if (mapped) mapped.forEach((granular) => expanded.add(granular));
+    else expanded.add(key);
+  }
+  return [...expanded];
+}
 
 // Seeds lookup defaults without ever overwriting rows an admin has since edited.
 async function seedDefaults() {
@@ -56,8 +82,27 @@ async function seedDefaults() {
   for (const role of DEFAULT_CUSTOM_ROLES) {
     await database.query(
       "INSERT INTO custom_role (id, name, description, permissions) VALUES ($1, $2, $3, $4::jsonb) ON CONFLICT (name) DO NOTHING",
-      [randomUUID(), role.name, role.description, JSON.stringify(role.permissions)],
+      [randomUUID(), role.name, role.description, JSON.stringify(expandLegacyPermissions(role.permissions))],
     );
+  }
+
+  // One-time migration: any existing custom_role still holding a retired coarse key
+  // (from before permissions were split into granular ones) gets it expanded in place.
+  const existingRoles = (await database.query("SELECT id, permissions FROM custom_role")) as { id: string; permissions: unknown }[];
+  for (const row of existingRoles) {
+    const current = Array.isArray(row.permissions) ? (row.permissions as string[]) : [];
+    if (!current.some((key) => key in LEGACY_PERMISSION_EXPANSION)) continue;
+    const migrated = expandLegacyPermissions(current);
+    await database.query("UPDATE custom_role SET permissions = $2::jsonb, updated_at = now() WHERE id = $1", [row.id, JSON.stringify(migrated)]);
+  }
+
+  // Same migration for any per-user permission overrides stored on user.permissions.grants.
+  const usersWithGrants = (await database.query("SELECT id, permissions FROM \"user\" WHERE permissions -> 'grants' IS NOT NULL")) as { id: string; permissions: { grants?: unknown; tabs?: unknown } | null }[];
+  for (const row of usersWithGrants) {
+    const current = Array.isArray(row.permissions?.grants) ? (row.permissions!.grants as string[]) : [];
+    if (!current.some((key) => key in LEGACY_PERMISSION_EXPANSION)) continue;
+    const migrated = { ...row.permissions, grants: expandLegacyPermissions(current) };
+    await database.query("UPDATE \"user\" SET permissions = $2::jsonb WHERE id = $1", [row.id, JSON.stringify(migrated)]);
   }
 }
 

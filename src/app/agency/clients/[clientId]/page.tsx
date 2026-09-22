@@ -24,7 +24,7 @@ import { SupportInbox, type Ticket } from "@/app/agency/support/support-inbox";
 
 export default async function AgencyClientDashboardPage({ params }: { params: Promise<{ clientId: string }> }) {
   const actor = await requireAgencyUser();
-  const canManageTasks = await hasPermission(actor, "manage_tasks");
+  const canManageTasks = await hasPermission(actor, "manage_all_tasks");
   const { clientId } = await params;
   const client = await db.query.clientAccounts.findFirst({ where: eq(clientAccounts.id, clientId) });
   if (!client) return <Card><CardContent className="pt-6">Client not found.</CardContent></Card>;

@@ -17,7 +17,7 @@ import { archiveOnboardingFlow, createOnboardingFlow, duplicateOnboardingFlow } 
 import { OnboardingFlowEditor } from "./onboarding-flow-editor";
 
 export default async function OnboardingFlowsPage() {
-  await requireAgencyPermission("manage_settings");
+  await requireAgencyPermission("manage_onboarding_flows");
   const [flows, types] = await Promise.all([
     db.query.onboardingFlows.findMany({ where: eq(onboardingFlows.archived, false), orderBy: asc(onboardingFlows.name) }),
     db.query.clientTypes.findMany({ where: eq(clientTypes.archived, false), orderBy: asc(clientTypes.label) }),

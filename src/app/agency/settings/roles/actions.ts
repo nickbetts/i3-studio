@@ -9,7 +9,8 @@ import { requireAgencyPermission } from "@/lib/permissions";
 import { PERMISSION_KEYS } from "@/lib/permissions";
 import { auditLog } from "@/lib/audit";
 
-// Custom role management is admin-only: it defines the ceiling of what any staff member can do.
+// Defining a role (manage_roles) and assigning it to staff (assign_roles) are separate
+// permissions, since granting either alone shouldn't let someone do both.
 const roleSchema = z.object({ name: z.string().trim().min(2), description: z.string().trim().optional() });
 
 function permissionsFromForm(formData: FormData) {
@@ -48,7 +49,7 @@ export async function deleteCustomRole(formData: FormData): Promise<void> {
 }
 
 export async function assignCustomRole(formData: FormData): Promise<void> {
-  const actor = await requireAgencyPermission("manage_roles");
+  const actor = await requireAgencyPermission("assign_roles");
   const userId = String(formData.get("userId") || "");
   const roleId = String(formData.get("customRoleId") || "") || null;
   if (!userId) return;

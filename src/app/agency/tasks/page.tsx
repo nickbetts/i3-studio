@@ -45,7 +45,8 @@ const STATUS_RANK: Record<string, number> = { open: 0, in_progress: 1, blocked: 
 
 export default async function AgencyTasksPage({ searchParams }: { searchParams: Promise<{ assignee?: string; clientId?: string; projectId?: string; status?: string; priority?: string; sort?: string }> }) {
   const user = await requireAgencyUser();
-  const canManage = await hasPermission(user, "manage_tasks");
+  const canCreateTasks = await hasPermission(user, "create_tasks");
+  const canManage = await hasPermission(user, "manage_all_tasks");
   const { assignee = "me", clientId = "", projectId = "", status = "open_items", priority = "all", sort = "due" } = await searchParams;
 
   const [clients, team, allProjects, loggedTime, savedViews, myAssignments, teamsList] = await Promise.all([
@@ -108,7 +109,7 @@ export default async function AgencyTasksPage({ searchParams }: { searchParams: 
     <div className="space-y-6">
       <PageHeader title="Tasks" description="Everything the team needs to do, in one place." />
 
-      {canManage ? (
+      {canCreateTasks ? (
         <CreatePanel title="New task"><Card>
           <CardHeader><CardTitle className="text-base">Create a task</CardTitle><CardDescription>Tasks appear here and in the client portal as outstanding items.</CardDescription></CardHeader>
           <CardContent>

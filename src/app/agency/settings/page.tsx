@@ -22,9 +22,11 @@ const palette = ["#6366f1", "#06b6d4", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6
 
 export default async function AgencySettingsPage() {
   const actor = await requireAgencyUser();
-  const canManageStaff = await hasPermission(actor, "manage_users");
-  const canManageClients = await hasPermission(actor, "manage_clients");
-  if (!canManageStaff && !canManageClients) redirect("/agency");
+  const canCreateUsers = await hasPermission(actor, "create_users");
+  const canEditUserAccess = await hasPermission(actor, "edit_user_access");
+  const canRemoveUsers = await hasPermission(actor, "remove_users");
+  const canManageClientUsers = await hasPermission(actor, "manage_client_users");
+  if (!canCreateUsers && !canEditUserAccess && !canRemoveUsers && !canManageClientUsers) redirect("/agency");
   const team = await db.query.users.findMany({
     where: (user, { inArray }) => inArray(user.role, ["admin", "account_manager", "content_writer"]),
     orderBy: desc(users.createdAt),
@@ -47,7 +49,7 @@ export default async function AgencySettingsPage() {
       />
 
 
-      {canManageStaff ? (
+      {canCreateUsers ? (
       <CreatePanel title="Add teammate"><Card>
         <CardHeader>
           <CardTitle className="text-base">Add teammate</CardTitle>
@@ -72,7 +74,7 @@ export default async function AgencySettingsPage() {
       </Card></CreatePanel>
       ) : null}
 
-      {canManageStaff ? (
+      {canEditUserAccess ? (
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Internal users</CardTitle>
@@ -109,7 +111,7 @@ export default async function AgencySettingsPage() {
                   </div>
                   <Button type="submit" variant="outline">Save access</Button>
                 </form>
-                {member.id !== actor.id ? (
+                {member.id !== actor.id && canRemoveUsers ? (
                   <ConfirmButton
                     action={removeTeammate}
                     hidden={{ userId: member.id }}
@@ -127,7 +129,7 @@ export default async function AgencySettingsPage() {
       </Card>
       ) : null}
 
-      {canManageClients ? <ClientManagement /> : null}
+      {canManageClientUsers ? <ClientManagement /> : null}
     </div>
   );
 }

@@ -13,12 +13,36 @@ import { CreatePanel } from "@/components/create-panel";
 import { EmptyState } from "@/components/empty-state";
 import { db } from "@/db";
 import { customRoles, users } from "@/db/schema";
-import { requireAgencyPermission } from "@/lib/permissions";
-import { PERMISSION_KEYS, PERMISSION_LABELS, type PermissionKey } from "@/lib/permissions";
+import { requireAgencyUser } from "@/lib/auth-helpers";
+import { hasPermission, PERMISSION_GROUPS, PERMISSION_LABELS, type PermissionKey } from "@/lib/permissions";
+import { redirect } from "next/navigation";
 import { assignCustomRole, createCustomRole, deleteCustomRole, updateCustomRole } from "./actions";
 
+function PermissionCheckboxes({ namePrefix, defaultGranted }: { namePrefix: string; defaultGranted: Set<PermissionKey> }) {
+  return (
+    <div className="space-y-3">
+      {PERMISSION_GROUPS.map((group) => (
+        <fieldset key={group.label} className="space-y-1.5 rounded-md border p-3">
+          <legend className="px-1 text-xs font-semibold text-muted-foreground">{group.label}</legend>
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            {group.keys.map((key) => (
+              <label key={key} className="flex items-center gap-2 text-sm">
+                <Checkbox name={`${namePrefix}${key}`} value="on" defaultChecked={defaultGranted.has(key)} />
+                {PERMISSION_LABELS[key]}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      ))}
+    </div>
+  );
+}
+
 export default async function RolesPage() {
-  await requireAgencyPermission("manage_roles");
+  const actor = await requireAgencyUser();
+  const canManageRoles = await hasPermission(actor, "manage_roles");
+  const canAssignRoles = await hasPermission(actor, "assign_roles");
+  if (!canManageRoles && !canAssignRoles) redirect("/agency");
   const [roles, staff] = await Promise.all([
     db.query.customRoles.findMany({ orderBy: asc(customRoles.name) }),
     db.query.users.findMany({ where: inArray(users.role, ["admin", "account_manager", "content_writer"]), orderBy: asc(users.name) }),
@@ -28,6 +52,7 @@ export default async function RolesPage() {
     <div className="space-y-6">
       <PageHeader title="Roles & permissions" description="Build custom permission sets for internal staff, beyond the base admin/account manager/content writer roles." breadcrumbs={[{ label: "Settings", href: "/agency/settings" }, { label: "Roles" }]} />
 
+      {canManageRoles ? (
       <CreatePanel title="New custom role">
         <Card>
           <CardHeader>
@@ -40,24 +65,18 @@ export default async function RolesPage() {
                 <div className="space-y-2"><Label htmlFor="role-name">Name</Label><Input id="role-name" name="name" required /></div>
                 <div className="space-y-2"><Label htmlFor="role-description">Description (optional)</Label><Input id="role-description" name="description" /></div>
               </div>
-              <fieldset className="grid gap-2 sm:grid-cols-2">
-                <legend className="mb-1 text-sm font-medium">Permissions</legend>
-                {PERMISSION_KEYS.map((key) => (
-                  <label key={key} className="flex items-center gap-2 text-sm">
-                    <Checkbox name={`perm-${key}`} value="on" />
-                    {PERMISSION_LABELS[key]}
-                  </label>
-                ))}
-              </fieldset>
+              <PermissionCheckboxes namePrefix="perm-" defaultGranted={new Set()} />
               <div><Button type="submit">Create role</Button></div>
             </form>
           </CardContent>
         </Card>
       </CreatePanel>
+      ) : null}
 
-      {roles.length === 0 ? (
+      {canManageRoles && roles.length === 0 ? (
         <EmptyState icon={ShieldCheck} title="No custom roles yet" description="Create one above to grant a specific set of permissions to staff." />
-      ) : (
+      ) : null}
+      {canManageRoles && roles.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2">
           {roles.map((role) => {
             const granted = new Set(Array.isArray(role.permissions) ? (role.permissions as PermissionKey[]) : []);
@@ -71,14 +90,7 @@ export default async function RolesPage() {
                 <CardContent className="space-y-4">
                   <form action={updateCustomRole} className="space-y-3">
                     <input type="hidden" name="roleId" value={role.id} />
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {PERMISSION_KEYS.map((key) => (
-                        <label key={key} className="flex items-center gap-2 text-sm">
-                          <Checkbox name={`perm-${key}`} value="on" defaultChecked={granted.has(key)} />
-                          {PERMISSION_LABELS[key]}
-                        </label>
-                      ))}
-                    </div>
+                    <PermissionCheckboxes namePrefix="perm-" defaultGranted={granted} />
                     <Button type="submit" variant="outline" size="sm">Save permissions</Button>
                   </form>
 
@@ -103,8 +115,9 @@ export default async function RolesPage() {
             );
           })}
         </div>
-      )}
+      ) : null}
 
+      {canAssignRoles ? (
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Assign roles to staff</CardTitle>
@@ -127,6 +140,7 @@ export default async function RolesPage() {
           ))}
         </CardContent>
       </Card>
+      ) : null}
     </div>
   );
 }

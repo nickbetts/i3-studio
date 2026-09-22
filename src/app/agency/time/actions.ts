@@ -63,7 +63,7 @@ export async function stopTimer(): Promise<{ ok: boolean; error?: string; durati
 }
 
 export async function setClientTimeBudget(formData: FormData): Promise<void> {
-  const actor = await requireAgencyPermission("manage_billing");
+  const actor = await requireAgencyPermission("manage_time_budgets");
   const clientAccountId = String(formData.get("clientAccountId") || "");
   const periodStart = new Date(`${String(formData.get("periodStart") || "")}T00:00:00.000Z`);
   const periodEnd = new Date(`${String(formData.get("periodEnd") || "")}T23:59:59.999Z`);
@@ -76,7 +76,7 @@ export async function setClientTimeBudget(formData: FormData): Promise<void> {
 }
 
 export async function setClientServiceAllocations(formData: FormData): Promise<void> {
-  const actor = await requireAgencyPermission("manage_billing");
+  const actor = await requireAgencyPermission("manage_service_allocations");
   const clientAccountId = String(formData.get("clientAccountId") || "");
   const periodStart = new Date(`${String(formData.get("periodStart") || "")}T00:00:00.000Z`);
   const periodEnd = new Date(`${String(formData.get("periodEnd") || "")}T23:59:59.999Z`);
@@ -100,7 +100,7 @@ export async function setClientServiceAllocations(formData: FormData): Promise<v
 }
 
 export async function deleteClientTimeBudget(formData: FormData): Promise<void> {
-  const actor = await requireAgencyPermission("manage_billing");
+  const actor = await requireAgencyPermission("manage_time_budgets");
   const budgetId = String(formData.get("budgetId") || "");
   if (!budgetId) return;
   await db.delete(clientTimeBudgets).where(eq(clientTimeBudgets.id, budgetId));
