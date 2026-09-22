@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
 import { SearchInput } from "@/components/search-input";
 import { Pagination } from "@/components/pagination";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { UploadForm } from "@/components/upload-form";
 import { db } from "@/db";
 import { clientAccounts, documents } from "@/db/schema";
@@ -90,27 +91,46 @@ export default async function AgencyFilesPage({ searchParams }: { searchParams: 
           {pageItems.length === 0 ? (
             <EmptyState icon={FileText} title="No files found" description={query || status ? "Try adjusting your search or filters." : "Upload a file above to share it with a client."} />
           ) : (
-            <div className="divide-y divide-border/60">
-              {pageItems.map((file) => {
-                const Icon = fileIcon(file.fileName, file.contentType);
-                return (
-                  <div key={file.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Icon className="size-4" /></span>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{file.title}</p>
-                        <p className="truncate text-xs text-muted-foreground">{clientName(file.clientAccountId)} · {file.fileName} · {formatBytes(file.size)} · {format(new Date(file.createdAt), "d MMM yyyy")}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <StatusBadge status={file.status} />
-                      <Button size="sm" variant="ghost" asChild>
-                        <a href={`/api/files/document/${file.id}`}><Download className="size-4" />Download</a>
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="overflow-hidden rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>File</TableHead>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Size</TableHead>
+                    <TableHead>Uploaded</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Download</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pageItems.map((file) => {
+                    const Icon = fileIcon(file.fileName, file.contentType);
+                    return (
+                      <TableRow key={file.id}>
+                        <TableCell className="max-w-72 whitespace-normal">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <Icon className="size-4 shrink-0 text-muted-foreground" />
+                            <div className="min-w-0">
+                              <p className="truncate font-medium">{file.title}</p>
+                              <p className="truncate text-xs text-muted-foreground">{file.fileName}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{clientName(file.clientAccountId)}</TableCell>
+                        <TableCell className="text-muted-foreground">{formatBytes(file.size)}</TableCell>
+                        <TableCell className="text-muted-foreground">{format(new Date(file.createdAt), "d MMM yyyy")}</TableCell>
+                        <TableCell><StatusBadge status={file.status} /></TableCell>
+                        <TableCell className="text-right">
+                          <Button size="sm" variant="ghost" asChild>
+                            <a href={`/api/files/document/${file.id}`}><Download className="size-4" />Download</a>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
           )}
           <Pagination page={currentPage} totalPages={totalPages} />
