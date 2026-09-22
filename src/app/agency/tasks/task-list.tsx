@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { bulkUpdateTasks } from "./actions";
 import { TaskAssignee } from "./task-assignee";
+import { TaskTeamPicker } from "./task-team-picker";
 import { TaskDetailDialog } from "./task-detail-dialog";
 import { TaskStatus } from "./task-status";
 import { TaskTimerButton } from "./task-timer-button";
@@ -29,13 +30,15 @@ export type TaskRow = {
   status: "open" | "in_progress" | "blocked" | "done";
   assignedToUserIds: string[];
   assigneeNames: string[];
+  assignedTeamId: string | null;
   timeSeconds: number;
   dueLabel: "overdue" | "soon" | null;
 };
 
 type Member = { id: string; name: string | null; email: string };
+type Team = { id: string; name: string };
 
-export function TaskList({ rows, team, currentUserId, canManage, compact = false }: { rows: TaskRow[]; team: Member[]; currentUserId: string; canManage: boolean; compact?: boolean }) {
+export function TaskList({ rows, team, teams = [], currentUserId, canManage, compact = false }: { rows: TaskRow[]; team: Member[]; teams?: Team[]; currentUserId: string; canManage: boolean; compact?: boolean }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, start] = useTransition();
 
@@ -106,6 +109,7 @@ export function TaskList({ rows, team, currentUserId, canManage, compact = false
               {task.timeSeconds > 0 ? <Badge variant="outline" className="gap-1 font-mono tabular-nums"><Clock3 className="size-3" />{formatLoggedTime(task.timeSeconds)}</Badge> : null}
               <TaskTimerButton clientAccountId={task.clientAccountId} projectId={task.projectId} taskId={task.id} clientName={task.clientName} projectName={task.projectName} taskTitle={task.title} />
               <TaskAssignee taskId={task.id} assignedToUserIds={task.assignedToUserIds} team={team} editable={canManage} />
+              {teams.length > 0 ? <TaskTeamPicker taskId={task.id} assignedTeamId={task.assignedTeamId} teams={teams} editable={canManage} /> : null}
               {canEditTask ? <TaskStatus taskId={task.id} value={task.status} /> : <Badge variant="outline" className="capitalize">{task.status.replace("_", " ")}</Badge>}
             </div>
           </div>

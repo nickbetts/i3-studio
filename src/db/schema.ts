@@ -30,6 +30,23 @@ export const messageChannel = pgEnum("message_channel", ["portal", "email"]);
 export const messageDirection = pgEnum("message_direction", ["inbound", "outbound"]);
 export const contentStatus = pgEnum("content_status", ["draft", "pending_am", "am_changes", "pending_client", "client_changes", "approved", "published"]);
 
+// Fixed catalogue of granular permission keys custom roles can grant. Kept as a plain
+// string union (not a pg enum) so the set can grow without a migration.
+export const PERMISSION_KEYS = [
+  "manage_teams",
+  "manage_roles",
+  "manage_users",
+  "manage_clients",
+  "manage_tasks",
+  "manage_tickets",
+  "manage_content",
+  "manage_designs",
+  "manage_billing",
+  "view_reports",
+  "manage_settings",
+] as const;
+export type PermissionKey = (typeof PERMISSION_KEYS)[number];
+
 // ---------------------------------------------------------------------------
 // Auth.js core tables (Drizzle adapter) — extended with app fields
 // ---------------------------------------------------------------------------
@@ -49,9 +66,83 @@ export const users = pgTable("user", {
   phone: text("phone"),
   title: text("title"),
   clientRole: text("client_role"),
+  // Freeform per-user overrides, e.g. { tabs: [...], grants: ["manage_tickets"] }.
   permissions: jsonb("permissions").notNull().default({}),
+  // Optional custom role granting a fixed set of PERMISSION_KEYS; admins always have all permissions.
+  customRoleId: text("custom_role_id").references(() => customRoles.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
+
+// ---------------------------------------------------------------------------
+// Custom roles (global, staff-only) — named bundles of permission keys.
+// ---------------------------------------------------------------------------
+export const customRoles = pgTable("custom_role", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  description: text("description"),
+  // Array of PermissionKey strings.
+  permissions: jsonb("permissions").notNull().default([]),
+  // Not a strict FK (avoids a users<->customRoles type circularity); audit-only reference.
+  createdByUserId: text("created_by_user_id"),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+// ---------------------------------------------------------------------------
+// Teams — named groups of staff, optionally scoped to one client, assignable
+// to tasks and support tickets.
+// ---------------------------------------------------------------------------
+export const teams = pgTable(
+  "team",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    name: text("name").notNull(),
+    description: text("description"),
+    // Null = global team, usable across all clients. Set = restricted to this client only.
+    clientAccountId: text("client_account_id").references(() => clientAccounts.id, { onDelete: "cascade" }),
+    archived: boolean("archived").notNull().default(false),
+    createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("team_client_idx").on(t.clientAccountId)],
+);
+
+export const teamMembers = pgTable(
+  "team_member",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    teamId: text("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("team_member_unique_idx").on(t.teamId, t.userId), index("team_member_user_idx").on(t.userId)],
+);
+
+// ---------------------------------------------------------------------------
+// Client watchers — grants an internal user visibility/notifications for one
+// specific client (e.g. a director watching client X's tickets only).
+// ---------------------------------------------------------------------------
+export const clientWatchers = pgTable(
+  "client_watcher",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    clientAccountId: text("client_account_id").notNull().references(() => clientAccounts.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    notifyTickets: boolean("notify_tickets").notNull().default(true),
+    notifyTasks: boolean("notify_tasks").notNull().default(false),
+    createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("client_watcher_unique_idx").on(t.clientAccountId, t.userId), index("client_watcher_user_idx").on(t.userId)],
+);
 
 export const accounts = pgTable(
   "account",
@@ -302,6 +393,7 @@ export const tasks = pgTable(
     status: taskStatus("status").notNull().default("open"),
     priority: taskPriority("priority").notNull().default("medium"),
     assignedToUserId: text("assigned_to_user_id").references(() => users.id, { onDelete: "set null" }),
+    assignedTeamId: text("assigned_team_id").references(() => teams.id, { onDelete: "set null" }),
     createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
     dueDate: timestamp("due_date", { mode: "date" }),
     recurrenceRule: text("recurrence_rule"),
@@ -749,6 +841,7 @@ export const tickets = pgTable(
     priority: ticketPriority("priority").notNull().default("medium"),
     createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
     assignedToUserId: text("assigned_to_user_id").references(() => users.id, { onDelete: "set null" }),
+    assignedTeamId: text("assigned_team_id").references(() => teams.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
   },
@@ -880,6 +973,10 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     fields: [users.clientAccountId],
     references: [clientAccounts.id],
   }),
+  customRole: one(customRoles, {
+    fields: [users.customRoleId],
+    references: [customRoles.id],
+  }),
   assignments: many(accountManagerAssignments),
 }));
 
@@ -976,3 +1073,23 @@ export const ticketMessagesRelations = relations(ticketMessages, ({ one }) => ({
     references: [tickets.id],
   }),
 }));
+
+export const teamsRelations = relations(teams, ({ one, many }) => ({
+  clientAccount: one(clientAccounts, { fields: [teams.clientAccountId], references: [clientAccounts.id] }),
+  members: many(teamMembers),
+}));
+
+export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
+  team: one(teams, { fields: [teamMembers.teamId], references: [teams.id] }),
+  user: one(users, { fields: [teamMembers.userId], references: [users.id] }),
+}));
+
+export const clientWatchersRelations = relations(clientWatchers, ({ one }) => ({
+  clientAccount: one(clientAccounts, { fields: [clientWatchers.clientAccountId], references: [clientAccounts.id] }),
+  user: one(users, { fields: [clientWatchers.userId], references: [users.id] }),
+}));
+
+export const customRolesRelations = relations(customRoles, ({ many }) => ({
+  users: many(users),
+}));
+

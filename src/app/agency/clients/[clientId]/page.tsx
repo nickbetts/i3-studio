@@ -3,17 +3,18 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
 import { ConfirmButton } from "@/components/confirm-button";
 import { CreatePanel } from "@/components/create-panel";
 import { UploadForm } from "@/components/upload-form";
 import { db } from "@/db";
-import { accountManagerAssignments, clientAccounts, clientTypes, onboardingSubmissions, projects, referenceFiles, taskAssignments, tasks, tickets, timeEntries, users } from "@/db/schema";
+import { accountManagerAssignments, clientAccounts, clientTypes, clientWatchers, onboardingSubmissions, projects, referenceFiles, taskAssignments, tasks, tickets, timeEntries, users } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
 import { uploadDocument } from "@/app/agency/files/actions";
 import { uploadReference } from "@/app/portal/(app)/files/actions";
-import { addAccountManager, removeAccountManager, resetClientOnboarding, updateClientDetails } from "../actions";
+import { addAccountManager, addClientWatcher, removeAccountManager, removeClientWatcher, resetClientOnboarding, updateClientDetails } from "../actions";
 import { TaskList, type TaskRow } from "@/app/agency/tasks/task-list";
 import { taskDueLabel } from "@/lib/task-display";
 import { getTimeReport } from "@/lib/time-report";
@@ -25,7 +26,7 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
   const { clientId } = await params;
   const client = await db.query.clientAccounts.findFirst({ where: eq(clientAccounts.id, clientId) });
   if (!client) return <Card><CardContent className="pt-6">Client not found.</CardContent></Card>;
-  const [submission, managers, allManagers, types, clientTasks, references, clientProjects, team, clientTimeEntries, timeReport, clientTicketList] = await Promise.all([
+  const [submission, managers, allManagers, types, clientTasks, references, clientProjects, team, clientTimeEntries, timeReport, clientTicketList, watchers] = await Promise.all([
     db.query.onboardingSubmissions.findFirst({ where: eq(onboardingSubmissions.clientAccountId, clientId) }),
     db.select({ id: accountManagerAssignments.id, userId: users.id, name: users.name, email: users.email }).from(accountManagerAssignments).innerJoin(users, eq(accountManagerAssignments.userId, users.id)).where(eq(accountManagerAssignments.clientAccountId, clientId)),
     db.query.users.findMany({ where: eq(users.role, "account_manager") }),
@@ -37,10 +38,13 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
     db.query.timeEntries.findMany({ where: eq(timeEntries.clientAccountId, clientId), columns: { taskId: true, durationSeconds: true } }),
     getTimeReport(undefined, false, clientId),
     db.query.tickets.findMany({ where: eq(tickets.clientAccountId, clientId), orderBy: desc(tickets.updatedAt), with: { messages: { orderBy: (message, { asc }) => [asc(message.createdAt)] } } }),
+    db.query.clientWatchers.findMany({ where: eq(clientWatchers.clientAccountId, clientId) }),
   ]);
   const onboardingData = submission?.data && typeof submission.data === "object" ? Object.entries(submission.data as Record<string, unknown>) : [];
   const assignedManagerIds = new Set(managers.map((manager) => manager.userId));
   const availableManagers = allManagers.filter((manager) => !assignedManagerIds.has(manager.id));
+  const watcherUserIds = new Set(watchers.map((watcher) => watcher.userId));
+  const availableWatcherStaff = team.filter((member) => !watcherUserIds.has(member.id) && !assignedManagerIds.has(member.id));
   const taskAssignmentRows = clientTasks.length ? await db.query.taskAssignments.findMany({ where: inArray(taskAssignments.taskId, clientTasks.map((task) => task.id)) }) : [];
   const timeByTask = new Map<string, number>();
   for (const entry of clientTimeEntries) if (entry.taskId) timeByTask.set(entry.taskId, (timeByTask.get(entry.taskId) ?? 0) + entry.durationSeconds);
@@ -48,10 +52,10 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
   const taskRows: TaskRow[] = clientTasks.map((task) => {
     const assignmentIds = taskAssignmentRows.filter((assignment) => assignment.taskId === task.id).map((assignment) => assignment.userId);
     const assignedToUserIds = assignmentIds.length ? assignmentIds : task.assignedToUserId ? [task.assignedToUserId] : [];
-    return { id: task.id, title: task.title, clientAccountId: client.id, projectId: task.projectId, clientName: client.name, projectName: task.projectId ? projectName.get(task.projectId) ?? null : null, meta: task.projectId ? projectName.get(task.projectId) ?? "Unknown project" : "Client task", priority: task.priority, dueDate: task.dueDate?.toISOString() ?? null, status: task.status, assignedToUserIds, assigneeNames: assignedToUserIds.map((id) => team.find((member) => member.id === id)?.name || team.find((member) => member.id === id)?.email || "Unknown"), timeSeconds: timeByTask.get(task.id) ?? 0, dueLabel: taskDueLabel(task.dueDate, task.status) };
+    return { id: task.id, title: task.title, clientAccountId: client.id, projectId: task.projectId, clientName: client.name, projectName: task.projectId ? projectName.get(task.projectId) ?? null : null, meta: task.projectId ? projectName.get(task.projectId) ?? "Unknown project" : "Client task", priority: task.priority, dueDate: task.dueDate?.toISOString() ?? null, status: task.status, assignedToUserIds, assigneeNames: assignedToUserIds.map((id) => team.find((member) => member.id === id)?.name || team.find((member) => member.id === id)?.email || "Unknown"), assignedTeamId: task.assignedTeamId, timeSeconds: timeByTask.get(task.id) ?? 0, dueLabel: taskDueLabel(task.dueDate, task.status) };
   });
   const budgetRow = timeReport.rows[0];
-  const clientTickets: Ticket[] = clientTicketList.map((ticket) => ({ id: ticket.id, subject: ticket.subject, status: ticket.status, priority: ticket.priority, clientName: client.name, clientAccountId: client.id, assigneeName: team.find((member) => member.id === ticket.assignedToUserId)?.name ?? null, updatedAt: ticket.updatedAt, messages: ticket.messages }));
+  const clientTickets: Ticket[] = clientTicketList.map((ticket) => ({ id: ticket.id, subject: ticket.subject, status: ticket.status, priority: ticket.priority, clientName: client.name, clientAccountId: client.id, assigneeName: team.find((member) => member.id === ticket.assignedToUserId)?.name ?? null, assignedTeamId: ticket.assignedTeamId, updatedAt: ticket.updatedAt, messages: ticket.messages }));
   const resources = (
     <>
       <Card>
@@ -160,6 +164,41 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
               ) : null}
             </div>
 
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="text-base">Watchers</CardTitle><CardDescription>Give a staff member visibility on this client&apos;s tickets or tasks without assigning them.</CardDescription></CardHeader>
+          <CardContent className="space-y-3">
+            {watchers.length === 0 ? <p className="text-sm text-muted-foreground">No watchers yet.</p> : watchers.map((watcher) => {
+              const member = team.find((person) => person.id === watcher.userId);
+              return (
+                <div key={watcher.id} className="flex items-center justify-between gap-2 text-sm">
+                  <div>
+                    <p>{member?.name || member?.email || "Unknown"}</p>
+                    <p className="text-xs text-muted-foreground">{[watcher.notifyTickets ? "Tickets" : null, watcher.notifyTasks ? "Tasks" : null].filter(Boolean).join(" · ") || "No notifications"}</p>
+                  </div>
+                  <form action={removeClientWatcher}>
+                    <input type="hidden" name="watcherId" value={watcher.id} />
+                    <input type="hidden" name="clientAccountId" value={client.id} />
+                    <Button type="submit" variant="ghost" size="sm">Remove</Button>
+                  </form>
+                </div>
+              );
+            })}
+            {availableWatcherStaff.length > 0 ? (
+              <form action={addClientWatcher} className="space-y-2 pt-1">
+                <input type="hidden" name="clientAccountId" value={client.id} />
+                <Select name="userId">
+                  <SelectTrigger aria-label="Add watcher"><SelectValue placeholder="Add watcher" /></SelectTrigger>
+                  <SelectContent>{availableWatcherStaff.map((member) => <SelectItem key={member.id} value={member.id}>{member.name || member.email}</SelectItem>)}</SelectContent>
+                </Select>
+                <div className="flex flex-wrap items-center gap-4">
+                  <label className="flex items-center gap-2 text-sm"><Checkbox name="notifyTickets" value="on" defaultChecked />Notify on tickets</label>
+                  <label className="flex items-center gap-2 text-sm"><Checkbox name="notifyTasks" value="on" />Notify on tasks</label>
+                </div>
+                <Button type="submit" size="sm" variant="outline">Add watcher</Button>
+              </form>
+            ) : null}
           </CardContent>
         </Card>
         {resources}

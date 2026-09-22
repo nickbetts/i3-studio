@@ -105,6 +105,18 @@ await database.transaction([
     database.query("ALTER TABLE ticket_message ADD COLUMN IF NOT EXISTS attachment_size integer"),
   database.query("ALTER TABLE onboarding_submission ADD COLUMN IF NOT EXISTS terms_version text"),
   database.query("ALTER TABLE onboarding_submission ADD COLUMN IF NOT EXISTS terms_accepted_at timestamptz"),
+  database.query("CREATE TABLE IF NOT EXISTS custom_role (id text PRIMARY KEY, name text NOT NULL, description text, permissions jsonb NOT NULL DEFAULT '[]'::jsonb, created_by_user_id text, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now())"),
+  database.query("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS custom_role_id text REFERENCES custom_role(id) ON DELETE SET NULL"),
+  database.query("CREATE TABLE IF NOT EXISTS team (id text PRIMARY KEY, name text NOT NULL, description text, client_account_id text REFERENCES client_account(id) ON DELETE CASCADE, archived boolean NOT NULL DEFAULT false, created_by_user_id text REFERENCES \"user\"(id) ON DELETE SET NULL, created_at timestamptz NOT NULL DEFAULT now())"),
+  database.query("CREATE INDEX IF NOT EXISTS team_client_idx ON team (client_account_id)"),
+  database.query("CREATE TABLE IF NOT EXISTS team_member (id text PRIMARY KEY, team_id text NOT NULL REFERENCES team(id) ON DELETE CASCADE, user_id text NOT NULL REFERENCES \"user\"(id) ON DELETE CASCADE, created_at timestamptz NOT NULL DEFAULT now())"),
+  database.query("CREATE UNIQUE INDEX IF NOT EXISTS team_member_unique_idx ON team_member (team_id, user_id)"),
+  database.query("CREATE INDEX IF NOT EXISTS team_member_user_idx ON team_member (user_id)"),
+  database.query("CREATE TABLE IF NOT EXISTS client_watcher (id text PRIMARY KEY, client_account_id text NOT NULL REFERENCES client_account(id) ON DELETE CASCADE, user_id text NOT NULL REFERENCES \"user\"(id) ON DELETE CASCADE, notify_tickets boolean NOT NULL DEFAULT true, notify_tasks boolean NOT NULL DEFAULT false, created_by_user_id text REFERENCES \"user\"(id) ON DELETE SET NULL, created_at timestamptz NOT NULL DEFAULT now())"),
+  database.query("CREATE UNIQUE INDEX IF NOT EXISTS client_watcher_unique_idx ON client_watcher (client_account_id, user_id)"),
+  database.query("CREATE INDEX IF NOT EXISTS client_watcher_user_idx ON client_watcher (user_id)"),
+  database.query("ALTER TABLE task ADD COLUMN IF NOT EXISTS assigned_team_id text REFERENCES team(id) ON DELETE SET NULL"),
+  database.query("ALTER TABLE ticket ADD COLUMN IF NOT EXISTS assigned_team_id text REFERENCES team(id) ON DELETE SET NULL"),
 ]);
 await seedDefaults();
 console.log("Additive authentication and webhook safeguards ready. Existing data was not reset.");

@@ -50,3 +50,13 @@ export async function updateTicketPriority(ticketId: string, priority: "low" | "
   revalidatePath("/agency/support");
   revalidatePath(`/agency/clients/${ticket.clientAccountId}`);
 }
+
+export async function updateTicketTeam(ticketId: string, assignedTeamId: string | null): Promise<void> {
+  const user = await requireAgencyUser();
+  const ticket = await db.query.tickets.findFirst({ where: eq(tickets.id, ticketId) });
+  if (!ticket) return;
+  await db.update(tickets).set({ assignedTeamId, updatedAt: new Date() }).where(eq(tickets.id, ticketId));
+  await auditLog({ actorUserId: user.id, action: "ticket.team_updated", entityType: "ticket", entityId: ticketId, clientAccountId: ticket.clientAccountId, metadata: { assignedTeamId } });
+  revalidatePath("/agency/support");
+  revalidatePath(`/agency/clients/${ticket.clientAccountId}`);
+}

@@ -1,16 +1,17 @@
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { PageHeader } from "@/components/page-header";
 import { db } from "@/db";
-import { tickets as ticketsTable } from "@/db/schema";
+import { tickets as ticketsTable, teams as teamsTable } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
 import { SupportInbox } from "./support-inbox";
 
 export default async function AgencySupportPage() {
   await requireAgencyUser();
-  const [ticketList, clients, team] = await Promise.all([
+  const [ticketList, clients, team, teamsList] = await Promise.all([
     db.query.tickets.findMany({ orderBy: desc(ticketsTable.updatedAt), with: { messages: { orderBy: (message, { asc }) => [asc(message.createdAt)] } } }),
     db.query.clientAccounts.findMany(),
     db.query.users.findMany({ where: (user, { inArray }) => inArray(user.role, ["admin", "account_manager", "content_writer"]) }),
+    db.query.teams.findMany({ where: eq(teamsTable.archived, false) }),
   ]);
 
   const tickets = ticketList.map((ticket) => ({
@@ -21,6 +22,7 @@ export default async function AgencySupportPage() {
     clientName: clients.find((client) => client.id === ticket.clientAccountId)?.name ?? "Unknown client",
       clientAccountId: ticket.clientAccountId,
     assigneeName: team.find((member) => member.id === ticket.assignedToUserId)?.name ?? null,
+    assignedTeamId: ticket.assignedTeamId,
     updatedAt: ticket.updatedAt,
     messages: ticket.messages,
   }));
@@ -28,7 +30,7 @@ export default async function AgencySupportPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Support inbox" description="Search, filter and reply to every conversation from one place." />
-      <SupportInbox tickets={tickets} />
+      <SupportInbox tickets={tickets} teams={teamsList} />
     </div>
   );
 }

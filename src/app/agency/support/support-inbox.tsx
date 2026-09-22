@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/empty-state";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
 import { prepareUpload } from "@/lib/upload-client";
-import { replyToTicket, updateTicketPriority, updateTicketStatus } from "./actions";
+import { replyToTicket, updateTicketPriority, updateTicketStatus, updateTicketTeam } from "./actions";
 
 export type Message = { id: string; body: string; direction: string; channel: string; authorEmail: string | null; createdAt: string | Date; attachmentUrl: string | null; attachmentName: string | null };
 export type Ticket = {
@@ -24,13 +24,14 @@ export type Ticket = {
   clientName: string;
   clientAccountId: string;
   assigneeName: string | null;
+  assignedTeamId: string | null;
   updatedAt: string | Date;
   messages: Message[];
 };
 
 const STATUS_FILTERS = ["active", "all", "open", "pending", "resolved", "closed"] as const;
 
-export function SupportInbox({ tickets }: { tickets: Ticket[] }) {
+export function SupportInbox({ tickets, teams = [] }: { tickets: Ticket[]; teams?: { id: string; name: string }[] }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("active");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -135,6 +136,12 @@ export function SupportInbox({ tickets }: { tickets: Ticket[] }) {
                   <SelectTrigger aria-label="Ticket priority" className="w-32 capitalize"><SelectValue /></SelectTrigger>
                   <SelectContent>{["low", "medium", "high", "urgent"].map((item) => <SelectItem key={item} value={item} className="capitalize">{item}</SelectItem>)}</SelectContent>
                 </Select>
+                {teams.length > 0 ? (
+                  <Select value={selected.assignedTeamId ?? "none"} onValueChange={(value) => startTransition(async () => { await updateTicketTeam(selected.id, value === "none" ? null : value); toast.success("Team updated"); })}>
+                    <SelectTrigger aria-label="Assigned team" className="w-40"><SelectValue placeholder="No team" /></SelectTrigger>
+                    <SelectContent><SelectItem value="none">No team</SelectItem>{teams.map((teamOption) => <SelectItem key={teamOption.id} value={teamOption.id}>{teamOption.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                ) : null}
               </div>
             </DialogHeader>
             <div className="max-h-[45vh] space-y-3 overflow-y-auto p-4">

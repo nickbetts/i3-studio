@@ -32,6 +32,8 @@ export default async function AgencySettingsPage() {
         description="Manage teammates, client users, permissions and previews."
         actions={
           <>
+            <Button asChild variant="outline" size="sm"><Link href="/agency/settings/teams">Teams</Link></Button>
+            <Button asChild variant="outline" size="sm"><Link href="/agency/settings/roles">Roles & permissions</Link></Button>
             <Button asChild variant="outline" size="sm"><Link href="/agency/settings/client-types">Client types</Link></Button>
             <Button asChild variant="outline" size="sm"><Link href="/agency/settings/project-templates">Project templates</Link></Button>
             <Button asChild variant="outline" size="sm"><Link href="/agency/settings/onboarding-flows">Onboarding flows</Link></Button>

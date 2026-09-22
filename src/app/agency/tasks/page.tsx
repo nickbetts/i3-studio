@@ -12,7 +12,7 @@ import { CreatePanel } from "@/components/create-panel";
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { db } from "@/db";
-import { clientAccounts, projects, savedTaskViews, tasks, users } from "@/db/schema";
+import { clientAccounts, projects, savedTaskViews, tasks, teams as teamsTable, users } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
 import { createTask, saveTaskView } from "./actions";
 import { TaskFilterSelect } from "./task-filter-select";
@@ -47,13 +47,14 @@ export default async function AgencyTasksPage({ searchParams }: { searchParams: 
   const canManage = user.role === "admin" || user.role === "account_manager";
   const { assignee = "me", clientId = "", projectId = "", status = "open_items", priority = "all", sort = "due" } = await searchParams;
 
-  const [clients, team, allProjects, loggedTime, savedViews, myAssignments] = await Promise.all([
+  const [clients, team, allProjects, loggedTime, savedViews, myAssignments, teamsList] = await Promise.all([
     db.query.clientAccounts.findMany({ orderBy: asc(clientAccounts.name) }),
     db.query.users.findMany({ where: inArray(users.role, ["admin", "account_manager", "content_writer"]) }),
     db.query.projects.findMany({ orderBy: asc(projects.name) }),
     db.query.timeEntries.findMany({ columns: { taskId: true, durationSeconds: true } }),
     db.query.savedTaskViews.findMany({ where: eq(savedTaskViews.userId, user.id), orderBy: (view, { asc }) => [asc(view.name)] }),
     db.query.taskAssignments.findMany({ where: (assignment, { eq }) => eq(assignment.userId, user.id), columns: { taskId: true } }),
+    db.query.teams.findMany({ where: eq(teamsTable.archived, false), orderBy: asc(teamsTable.name) }),
   ]);
   const timeByTask = new Map<string, number>();
   for (const entry of loggedTime) if (entry.taskId) timeByTask.set(entry.taskId, (timeByTask.get(entry.taskId) ?? 0) + entry.durationSeconds);
@@ -96,6 +97,7 @@ export default async function AgencyTasksPage({ searchParams }: { searchParams: 
     status: task.status,
     assignedToUserIds: effectiveAssigneeIds,
     assigneeNames: effectiveAssigneeIds.map((id) => team.find((member) => member.id === id)?.name || team.find((member) => member.id === id)?.email || "Unknown"),
+    assignedTeamId: task.assignedTeamId,
     timeSeconds: timeByTask.get(task.id) ?? 0,
     dueLabel: taskDueLabel(task.dueDate, task.status),
     });
@@ -114,6 +116,7 @@ export default async function AgencyTasksPage({ searchParams }: { searchParams: 
               <div className="space-y-2"><Label htmlFor="task-project">Project (optional)</Label><Select name="projectId"><SelectTrigger id="task-project"><SelectValue placeholder="No project" /></SelectTrigger><SelectContent>{allProjects.map((project) => <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-2"><Label htmlFor="task-title">Task title</Label><Input id="task-title" name="title" required /></div>
               <fieldset className="space-y-2"><legend className="text-sm font-medium">Assignees</legend><div className="grid max-h-36 gap-2 overflow-y-auto rounded-md border p-3 sm:grid-cols-2">{team.map((member) => <label key={member.id} className="flex items-center gap-2 text-sm"><Checkbox name="assignedToUserIds" value={member.id} />{member.name || member.email}</label>)}</div></fieldset>
+              <div className="space-y-2"><Label htmlFor="task-team">Team (optional)</Label><Select name="assignedTeamId"><SelectTrigger id="task-team"><SelectValue placeholder="No team" /></SelectTrigger><SelectContent>{teamsList.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}{t.clientAccountId ? ` (${clientName(t.clientAccountId)})` : ""}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-2 md:col-span-2"><Label htmlFor="task-description">Description</Label><Textarea id="task-description" name="description" /></div>
               <div className="space-y-2"><Label htmlFor="task-priority">Priority</Label><Select name="priority" defaultValue="medium"><SelectTrigger id="task-priority"><SelectValue /></SelectTrigger><SelectContent>{["low", "medium", "high", "urgent"].map((p) => <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-2"><Label htmlFor="task-due">Due date</Label><Input id="task-due" name="dueDate" type="date" /></div>
@@ -144,7 +147,7 @@ export default async function AgencyTasksPage({ searchParams }: { searchParams: 
           {rows.length === 0 ? (
             <EmptyState icon={ListTodo} title="No matching tasks" description="Try a different filter, or create a task above." />
           ) : (
-            <TaskList rows={rows} team={team} currentUserId={user.id} canManage={canManage} />
+            <TaskList rows={rows} team={team} teams={teamsList} currentUserId={user.id} canManage={canManage} />
           )}
         </CardContent>
       </Card>

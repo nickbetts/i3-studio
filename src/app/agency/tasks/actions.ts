@@ -16,6 +16,7 @@ const taskSchema = z.object({
   description: z.string().trim().optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]),
   assignedToUserIds: z.array(z.string()).default([]),
+  assignedTeamId: z.string().optional(),
   dueDate: z.string().optional(),
   recurrenceRule: z.enum(["daily", "weekly", "monthly"]).optional(),
 });
@@ -33,6 +34,7 @@ export async function createTask(formData: FormData): Promise<void> {
     description: formData.get("description") || undefined,
     priority: formData.get("priority") || "medium",
     assignedToUserIds: formData.getAll("assignedToUserIds").map(String).filter(Boolean),
+    assignedTeamId: formData.get("assignedTeamId") || undefined,
     dueDate: formData.get("dueDate") || undefined,
     recurrenceRule: formData.get("recurrenceRule") || undefined,
   });
@@ -45,6 +47,7 @@ export async function createTask(formData: FormData): Promise<void> {
     description: parsed.data.description,
     priority: parsed.data.priority,
     assignedToUserId: parsed.data.assignedToUserIds[0] || null,
+    assignedTeamId: parsed.data.assignedTeamId || null,
     dueDate: parsed.data.dueDate ? new Date(`${parsed.data.dueDate}T12:00:00`) : null,
     createdByUserId: actor.id,
     recurrenceRule: parsed.data.recurrenceRule || null,
@@ -122,6 +125,16 @@ export async function updateTaskAssignees(taskId: string, assignedToUserIds: str
   await db.update(tasks).set({ assignedToUserId: uniqueUserIds[0] ?? null, updatedAt: new Date() }).where(eq(tasks.id, taskId));
   await recordActivity(taskId, actor.id, "assignees_changed", { assignedToUserIds: uniqueUserIds });
   await auditLog({ actorUserId: actor.id, action: "task.assignees_updated", entityType: "task", entityId: taskId, clientAccountId: task.clientAccountId, metadata: { assignedToUserIds: uniqueUserIds } });
+  revalidatePath("/agency/tasks");
+}
+
+export async function updateTaskTeam(taskId: string, assignedTeamId: string | null): Promise<void> {
+  const actor = await requireManager();
+  const task = await db.query.tasks.findFirst({ where: eq(tasks.id, taskId) });
+  if (!task) return;
+  await db.update(tasks).set({ assignedTeamId, updatedAt: new Date() }).where(eq(tasks.id, taskId));
+  await recordActivity(taskId, actor.id, "team_changed", { assignedTeamId });
+  await auditLog({ actorUserId: actor.id, action: "task.team_updated", entityType: "task", entityId: taskId, clientAccountId: task.clientAccountId, metadata: { assignedTeamId } });
   revalidatePath("/agency/tasks");
 }
 

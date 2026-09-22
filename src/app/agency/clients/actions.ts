@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
-import { accountManagerAssignments, clientAccounts, onboardingSubmissions, users } from "@/db/schema";
+import { accountManagerAssignments, clientAccounts, clientWatchers, onboardingSubmissions, users } from "@/db/schema";
 import { requireManager } from "@/lib/auth-helpers";
 import { auditLog } from "@/lib/audit";
 
@@ -110,4 +110,28 @@ export async function updateClientDetails(formData: FormData): Promise<void> {
   await auditLog({ actorUserId: actor.id, action: "client.updated", entityType: "client_account", entityId: clientAccountId, clientAccountId, metadata: { status, clientTypeId } });
   revalidatePath(`/agency/clients/${clientAccountId}`);
   revalidatePath("/agency/clients");
+}
+
+// Grants an internal user (e.g. a director) visibility/notifications for one specific client
+// without giving them access to every client's tickets or tasks.
+export async function addClientWatcher(formData: FormData): Promise<void> {
+  const actor = await requireManager();
+  const clientAccountId = String(formData.get("clientAccountId") || "");
+  const userId = String(formData.get("userId") || "");
+  const notifyTickets = formData.get("notifyTickets") === "on";
+  const notifyTasks = formData.get("notifyTasks") === "on";
+  if (!clientAccountId || !userId) return;
+  await db.insert(clientWatchers).values({ clientAccountId, userId, notifyTickets, notifyTasks, createdByUserId: actor.id }).onConflictDoUpdate({ target: [clientWatchers.clientAccountId, clientWatchers.userId], set: { notifyTickets, notifyTasks } });
+  await auditLog({ actorUserId: actor.id, action: "client.watcher_added", entityType: "client_account", entityId: clientAccountId, clientAccountId, metadata: { userId, notifyTickets, notifyTasks } });
+  revalidatePath(`/agency/clients/${clientAccountId}`);
+}
+
+export async function removeClientWatcher(formData: FormData): Promise<void> {
+  const actor = await requireManager();
+  const watcherId = String(formData.get("watcherId") || "");
+  const clientAccountId = String(formData.get("clientAccountId") || "");
+  if (!watcherId) return;
+  await db.delete(clientWatchers).where(eq(clientWatchers.id, watcherId));
+  await auditLog({ actorUserId: actor.id, action: "client.watcher_removed", entityType: "client_account", entityId: clientAccountId, clientAccountId });
+  revalidatePath(`/agency/clients/${clientAccountId}`);
 }
