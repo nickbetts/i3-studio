@@ -11,13 +11,13 @@ import { EmptyState } from "@/components/empty-state";
 import { ConfirmButton } from "@/components/confirm-button";
 import { db } from "@/db";
 import { clientTypes, onboardingFlows } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth-helpers";
+import { requireAgencyPermission } from "@/lib/permissions";
 import type { OnboardingFlowStep } from "@/lib/onboarding-flow";
 import { archiveOnboardingFlow, createOnboardingFlow, duplicateOnboardingFlow } from "./actions";
 import { OnboardingFlowEditor } from "./onboarding-flow-editor";
 
 export default async function OnboardingFlowsPage() {
-  await requireAdmin();
+  await requireAgencyPermission("manage_settings");
   const [flows, types] = await Promise.all([
     db.query.onboardingFlows.findMany({ where: eq(onboardingFlows.archived, false), orderBy: asc(onboardingFlows.name) }),
     db.query.clientTypes.findMany({ where: eq(clientTypes.archived, false), orderBy: asc(clientTypes.label) }),

@@ -12,6 +12,7 @@ import { UploadForm } from "@/components/upload-form";
 import { db } from "@/db";
 import { accountManagerAssignments, clientAccounts, clientTypes, clientWatchers, onboardingSubmissions, projects, referenceFiles, taskAssignments, tasks, tickets, timeEntries, users } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
+import { hasPermission } from "@/lib/permissions";
 import { uploadDocument } from "@/app/agency/files/actions";
 import { uploadReference } from "@/app/portal/(app)/files/actions";
 import { addAccountManager, addClientWatcher, removeAccountManager, removeClientWatcher, resetClientOnboarding, updateClientDetails } from "../actions";
@@ -23,6 +24,7 @@ import { SupportInbox, type Ticket } from "@/app/agency/support/support-inbox";
 
 export default async function AgencyClientDashboardPage({ params }: { params: Promise<{ clientId: string }> }) {
   const actor = await requireAgencyUser();
+  const canManageTasks = await hasPermission(actor, "manage_tasks");
   const { clientId } = await params;
   const client = await db.query.clientAccounts.findFirst({ where: eq(clientAccounts.id, clientId) });
   if (!client) return <Card><CardContent className="pt-6">Client not found.</CardContent></Card>;
@@ -222,7 +224,7 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
       </Card>
       <Card data-testid="client-task-section">
         <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle className="text-base">Tasks</CardTitle><CardDescription>{taskRows.length} open task{taskRows.length === 1 ? "" : "s"} for this client.</CardDescription></div><Button variant="outline" size="sm" asChild><Link href={`/agency/tasks?assignee=all&clientId=${client.id}`}>Open task workspace</Link></Button></div></CardHeader>
-        <CardContent>{taskRows.length ? <TaskList compact rows={taskRows} team={team} currentUserId={actor.id} canManage={actor.role === "admin" || actor.role === "account_manager"} /> : <p className="text-sm text-muted-foreground">No open tasks for this client.</p>}</CardContent>
+        <CardContent>{taskRows.length ? <TaskList compact rows={taskRows} team={team} currentUserId={actor.id} canManage={canManageTasks} /> : <p className="text-sm text-muted-foreground">No open tasks for this client.</p>}</CardContent>
       </Card>
 
       <Card data-testid="client-budget-section">

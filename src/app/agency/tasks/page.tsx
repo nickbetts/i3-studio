@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/empty-state";
 import { db } from "@/db";
 import { clientAccounts, projects, savedTaskViews, tasks, teams as teamsTable, users } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
+import { hasPermission } from "@/lib/permissions";
 import { createTask, saveTaskView } from "./actions";
 import { TaskFilterSelect } from "./task-filter-select";
 import { TaskList, type TaskRow } from "./task-list";
@@ -44,7 +45,7 @@ const STATUS_RANK: Record<string, number> = { open: 0, in_progress: 1, blocked: 
 
 export default async function AgencyTasksPage({ searchParams }: { searchParams: Promise<{ assignee?: string; clientId?: string; projectId?: string; status?: string; priority?: string; sort?: string }> }) {
   const user = await requireAgencyUser();
-  const canManage = user.role === "admin" || user.role === "account_manager";
+  const canManage = await hasPermission(user, "manage_tasks");
   const { assignee = "me", clientId = "", projectId = "", status = "open_items", priority = "all", sort = "due" } = await searchParams;
 
   const [clients, team, allProjects, loggedTime, savedViews, myAssignments, teamsList] = await Promise.all([

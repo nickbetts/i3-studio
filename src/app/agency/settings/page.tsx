@@ -10,16 +10,21 @@ import { CreatePanel } from "@/components/create-panel";
 import { ConfirmButton } from "@/components/confirm-button";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth-helpers";
+import { requireAgencyUser } from "@/lib/auth-helpers";
+import { hasPermission } from "@/lib/permissions";
 import { createTeammate, removeTeammate, updateUserAccess } from "./actions";
 import { AvatarUpload } from "./avatar-upload";
 import { ClientManagement } from "./client-management";
+import { redirect } from "next/navigation";
 
 const tabs = [["dashboard", "Dashboard"], ["projects", "Projects"], ["approvals", "Approvals"], ["designs", "Designs"], ["support", "Support"]] as const;
 const palette = ["#6366f1", "#06b6d4", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#ef4444", "#14b8a6", "#3b82f6", "#eab308"];
 
 export default async function AgencySettingsPage() {
-  const actor = await requireAdmin();
+  const actor = await requireAgencyUser();
+  const canManageStaff = await hasPermission(actor, "manage_users");
+  const canManageClients = await hasPermission(actor, "manage_clients");
+  if (!canManageStaff && !canManageClients) redirect("/agency");
   const team = await db.query.users.findMany({
     where: (user, { inArray }) => inArray(user.role, ["admin", "account_manager", "content_writer"]),
     orderBy: desc(users.createdAt),
@@ -42,6 +47,7 @@ export default async function AgencySettingsPage() {
       />
 
 
+      {canManageStaff ? (
       <CreatePanel title="Add teammate"><Card>
         <CardHeader>
           <CardTitle className="text-base">Add teammate</CardTitle>
@@ -57,14 +63,16 @@ export default async function AgencySettingsPage() {
               <SelectContent>
                 <SelectItem value="account_manager">Account manager</SelectItem>
                 <SelectItem value="content_writer">Content writer</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
+                {actor.role === "admin" ? <SelectItem value="admin">Admin</SelectItem> : null}
               </SelectContent>
             </Select>
             <Button type="submit">Add teammate</Button>
           </form>
         </CardContent>
       </Card></CreatePanel>
+      ) : null}
 
+      {canManageStaff ? (
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Internal users</CardTitle>
@@ -88,7 +96,7 @@ export default async function AgencySettingsPage() {
                     <SelectContent>
                       <SelectItem value="account_manager">Account manager</SelectItem>
                       <SelectItem value="content_writer">Content writer</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
+                      {actor.role === "admin" || member.role === "admin" ? <SelectItem value="admin">Admin</SelectItem> : null}
                     </SelectContent>
                   </Select>
                   <div className="flex flex-wrap gap-3">
@@ -117,8 +125,9 @@ export default async function AgencySettingsPage() {
           })}
         </CardContent>
       </Card>
+      ) : null}
 
-      <ClientManagement />
+      {canManageClients ? <ClientManagement /> : null}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { clientTypes } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth-helpers";
+import { requireAgencyPermission } from "@/lib/permissions";
 import { auditLog } from "@/lib/audit";
 
 function slugifyKey(label: string) {
@@ -12,7 +12,7 @@ function slugifyKey(label: string) {
 }
 
 export async function createClientType(formData: FormData): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requireAgencyPermission("manage_settings");
   const label = String(formData.get("label") ?? "").trim();
   if (label.length < 2) return;
   const key = slugifyKey(label);
@@ -24,7 +24,7 @@ export async function createClientType(formData: FormData): Promise<void> {
 }
 
 export async function setClientTypeArchived(formData: FormData): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requireAgencyPermission("manage_settings");
   const id = String(formData.get("id") ?? "");
   const archived = formData.get("archived") === "true";
   if (!id) return;

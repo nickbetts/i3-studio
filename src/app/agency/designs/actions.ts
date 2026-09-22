@@ -3,13 +3,13 @@
 import { sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { requireAgencyUser } from "@/lib/auth-helpers";
+import { requireAgencyPermission } from "@/lib/permissions";
 import { verifiedUpload } from "@/lib/upload-server";
 
 export type UploadState = { error?: string; success?: string };
 
 export async function uploadDesign(_prev: UploadState, formData: FormData): Promise<UploadState> {
-  const actor = await requireAgencyUser();
+  const actor = await requireAgencyPermission("manage_designs");
   const clientAccountId = String(formData.get("clientAccountId") ?? "");
   const title = String(formData.get("title") ?? "").trim();
   if (!clientAccountId) return { error: "Choose a client." };

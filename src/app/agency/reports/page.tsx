@@ -8,9 +8,12 @@ import { PageHeader } from "@/components/page-header";
 import { db } from "@/db";
 import { auditLogs, clientAccounts, documents, tasks, tickets } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
+import { hasPermission } from "@/lib/permissions";
+import { redirect } from "next/navigation";
 
 export default async function AgencyReportsPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string }> }) {
-  await requireAgencyUser();
+  const actor = await requireAgencyUser();
+  if (!(await hasPermission(actor, "view_reports"))) redirect("/agency");
   const { from, to } = await searchParams;
   const conditions = [];
   if (from) conditions.push(gte(auditLogs.createdAt, new Date(`${from}T00:00:00`)));

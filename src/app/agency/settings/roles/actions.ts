@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { customRoles, users } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth-helpers";
+import { requireAgencyPermission } from "@/lib/permissions";
 import { PERMISSION_KEYS } from "@/lib/permissions";
 import { auditLog } from "@/lib/audit";
 
@@ -17,7 +17,7 @@ function permissionsFromForm(formData: FormData) {
 }
 
 export async function createCustomRole(formData: FormData): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requireAgencyPermission("manage_roles");
   const parsed = roleSchema.safeParse({ name: formData.get("name"), description: formData.get("description") || undefined });
   if (!parsed.success) return;
   const permissions = permissionsFromForm(formData);
@@ -27,7 +27,7 @@ export async function createCustomRole(formData: FormData): Promise<void> {
 }
 
 export async function updateCustomRole(formData: FormData): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requireAgencyPermission("manage_roles");
   const roleId = String(formData.get("roleId") || "");
   if (!roleId) return;
   const permissions = permissionsFromForm(formData);
@@ -37,7 +37,7 @@ export async function updateCustomRole(formData: FormData): Promise<void> {
 }
 
 export async function deleteCustomRole(formData: FormData): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requireAgencyPermission("manage_roles");
   const roleId = String(formData.get("roleId") || "");
   if (!roleId) return;
   await db.update(users).set({ customRoleId: null }).where(eq(users.customRoleId, roleId));
@@ -48,7 +48,7 @@ export async function deleteCustomRole(formData: FormData): Promise<void> {
 }
 
 export async function assignCustomRole(formData: FormData): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requireAgencyPermission("manage_roles");
   const userId = String(formData.get("userId") || "");
   const roleId = String(formData.get("customRoleId") || "") || null;
   if (!userId) return;

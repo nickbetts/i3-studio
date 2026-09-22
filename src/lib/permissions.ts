@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { customRoles, users, type PermissionKey } from "@/db/schema";
 import { PERMISSION_KEYS } from "@/db/schema";
+import { requireAgencyUser } from "@/lib/auth-helpers";
 
 export { PERMISSION_KEYS };
 export type { PermissionKey };
@@ -24,8 +25,8 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
 // so behaviour matches pre-existing role-based guards until an admin opts in.
 const DEFAULT_PERMISSIONS_BY_ROLE: Record<string, PermissionKey[]> = {
   admin: [...PERMISSION_KEYS],
-  account_manager: ["manage_clients", "manage_tasks", "manage_tickets", "manage_content", "manage_designs", "view_reports"],
-  content_writer: ["manage_content", "manage_tasks", "manage_tickets"],
+  account_manager: ["manage_clients", "manage_tasks", "manage_tickets", "manage_content", "manage_designs", "manage_billing", "view_reports"],
+  content_writer: ["manage_content", "manage_tasks", "manage_tickets", "manage_designs"],
   client: [],
 };
 
@@ -62,6 +63,13 @@ export async function hasPermission(user: PermissionUser, key: PermissionKey): P
 /** Throws if the current user lacks the given permission. Callers should first run requireAgencyUser(). */
 export async function requirePermission(user: PermissionUser, key: PermissionKey): Promise<void> {
   if (!(await hasPermission(user, key))) throw new Error("You don't have permission to do that.");
+}
+
+/** Requires an authenticated agency user AND the given permission; use in place of requireManager/requireAdmin in actions gated by a specific permission key. */
+export async function requireAgencyPermission(key: PermissionKey) {
+  const actor = await requireAgencyUser();
+  await requirePermission(actor, key);
+  return actor;
 }
 
 export async function listCustomRoles() {

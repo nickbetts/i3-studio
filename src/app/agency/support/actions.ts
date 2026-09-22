@@ -4,13 +4,13 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { ticketMessages, tickets, users } from "@/db/schema";
-import { requireAgencyUser } from "@/lib/auth-helpers";
+import { requireAgencyPermission } from "@/lib/permissions";
 import { auditLog } from "@/lib/audit";
 import { queueMail } from "@/lib/mailgun";
 import { consumeUpload, verifiedUpload } from "@/lib/upload-server";
 
 export async function replyToTicket(ticketId: string, body: string, attachmentForm?: FormData): Promise<void> {
-  const user = await requireAgencyUser();
+  const user = await requireAgencyPermission("manage_tickets");
   const ticket = await db.query.tickets.findFirst({ where: eq(tickets.id, ticketId), with: { clientAccount: true } });
   if (!ticket || !body.trim()) return;
   const client = await db.query.users.findFirst({ where: and(eq(users.clientAccountId, ticket.clientAccountId), eq(users.role, "client")) });
@@ -32,7 +32,7 @@ export async function replyToTicket(ticketId: string, body: string, attachmentFo
 }
 
 export async function updateTicketStatus(ticketId: string, status: "open" | "pending" | "resolved" | "closed"): Promise<void> {
-  const user = await requireAgencyUser();
+  const user = await requireAgencyPermission("manage_tickets");
   const ticket = await db.query.tickets.findFirst({ where: eq(tickets.id, ticketId) });
   if (!ticket) return;
   await db.update(tickets).set({ status, updatedAt: new Date() }).where(eq(tickets.id, ticketId));
@@ -42,7 +42,7 @@ export async function updateTicketStatus(ticketId: string, status: "open" | "pen
 }
 
 export async function updateTicketPriority(ticketId: string, priority: "low" | "medium" | "high" | "urgent"): Promise<void> {
-  const user = await requireAgencyUser();
+  const user = await requireAgencyPermission("manage_tickets");
   const ticket = await db.query.tickets.findFirst({ where: eq(tickets.id, ticketId) });
   if (!ticket) return;
   await db.update(tickets).set({ priority, updatedAt: new Date() }).where(eq(tickets.id, ticketId));
@@ -52,7 +52,7 @@ export async function updateTicketPriority(ticketId: string, priority: "low" | "
 }
 
 export async function updateTicketTeam(ticketId: string, assignedTeamId: string | null): Promise<void> {
-  const user = await requireAgencyUser();
+  const user = await requireAgencyPermission("manage_tickets");
   const ticket = await db.query.tickets.findFirst({ where: eq(tickets.id, ticketId) });
   if (!ticket) return;
   await db.update(tickets).set({ assignedTeamId, updatedAt: new Date() }).where(eq(tickets.id, ticketId));

@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { accountManagerAssignments, clientAccounts, clientWatchers, onboardingSubmissions, users } from "@/db/schema";
-import { requireManager } from "@/lib/auth-helpers";
+import { requireAgencyPermission } from "@/lib/permissions";
 import { auditLog } from "@/lib/audit";
 
 const clientSchema = z.object({
@@ -22,7 +22,7 @@ function slugify(value: string) {
 }
 
 export async function createClient(formData: FormData): Promise<void> {
-  const actor = await requireManager();
+  const actor = await requireAgencyPermission("manage_clients");
   const parsed = clientSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
@@ -65,7 +65,7 @@ export async function createClient(formData: FormData): Promise<void> {
 }
 
 export async function resetClientOnboarding(formData: FormData): Promise<void> {
-  const actor = await requireManager();
+  const actor = await requireAgencyPermission("manage_clients");
   const clientAccountId = String(formData.get("clientAccountId") || "");
   if (!clientAccountId) return;
   await db.delete(onboardingSubmissions).where(eq(onboardingSubmissions.clientAccountId, clientAccountId));
@@ -78,7 +78,7 @@ export async function resetClientOnboarding(formData: FormData): Promise<void> {
 }
 
 export async function addAccountManager(formData: FormData): Promise<void> {
-  const actor = await requireManager();
+  const actor = await requireAgencyPermission("manage_clients");
   const clientAccountId = String(formData.get("clientAccountId") || "");
   const userId = String(formData.get("userId") || "");
   if (!clientAccountId || !userId) return;
@@ -88,7 +88,7 @@ export async function addAccountManager(formData: FormData): Promise<void> {
 }
 
 export async function removeAccountManager(formData: FormData): Promise<void> {
-  const actor = await requireManager();
+  const actor = await requireAgencyPermission("manage_clients");
   const assignmentId = String(formData.get("assignmentId") || "");
   const clientAccountId = String(formData.get("clientAccountId") || "");
   if (!assignmentId) return;
@@ -100,7 +100,7 @@ export async function removeAccountManager(formData: FormData): Promise<void> {
 const clientDetailsStatuses = ["prospect", "onboarding", "active", "paused"] as const;
 
 export async function updateClientDetails(formData: FormData): Promise<void> {
-  const actor = await requireManager();
+  const actor = await requireAgencyPermission("manage_clients");
   const clientAccountId = String(formData.get("clientAccountId") || "");
   if (!clientAccountId) return;
   const statusInput = String(formData.get("status") || "");
@@ -115,7 +115,7 @@ export async function updateClientDetails(formData: FormData): Promise<void> {
 // Grants an internal user (e.g. a director) visibility/notifications for one specific client
 // without giving them access to every client's tickets or tasks.
 export async function addClientWatcher(formData: FormData): Promise<void> {
-  const actor = await requireManager();
+  const actor = await requireAgencyPermission("manage_clients");
   const clientAccountId = String(formData.get("clientAccountId") || "");
   const userId = String(formData.get("userId") || "");
   const notifyTickets = formData.get("notifyTickets") === "on";
@@ -127,7 +127,7 @@ export async function addClientWatcher(formData: FormData): Promise<void> {
 }
 
 export async function removeClientWatcher(formData: FormData): Promise<void> {
-  const actor = await requireManager();
+  const actor = await requireAgencyPermission("manage_clients");
   const watcherId = String(formData.get("watcherId") || "");
   const clientAccountId = String(formData.get("clientAccountId") || "");
   if (!watcherId) return;

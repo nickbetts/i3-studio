@@ -9,11 +9,11 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { db } from "@/db";
 import { clientTypes } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth-helpers";
+import { requireAgencyPermission } from "@/lib/permissions";
 import { createClientType, setClientTypeArchived } from "./actions";
 
 export default async function ClientTypesPage() {
-  await requireAdmin();
+  await requireAgencyPermission("manage_settings");
   const types = await db.query.clientTypes.findMany({ orderBy: asc(clientTypes.label) });
 
   return (

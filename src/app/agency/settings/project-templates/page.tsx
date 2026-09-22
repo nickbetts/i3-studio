@@ -11,13 +11,13 @@ import { EmptyState } from "@/components/empty-state";
 import { ConfirmButton } from "@/components/confirm-button";
 import { db } from "@/db";
 import { clientTypes, projectTemplates } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth-helpers";
+import { requireAgencyPermission } from "@/lib/permissions";
 import type { ProjectDeliverableTemplate, ProjectMilestoneTemplate } from "@/lib/project-templates";
 import { archiveProjectTemplate, createProjectTemplate, duplicateProjectTemplate } from "./actions";
 import { ProjectTemplateEditor } from "./project-template-editor";
 
 export default async function ProjectTemplatesPage() {
-  await requireAdmin();
+  await requireAgencyPermission("manage_settings");
   const [templates, types] = await Promise.all([
     db.query.projectTemplates.findMany({ where: eq(projectTemplates.archived, false), orderBy: asc(projectTemplates.name) }),
     db.query.clientTypes.findMany({ where: eq(clientTypes.archived, false), orderBy: asc(clientTypes.label) }),

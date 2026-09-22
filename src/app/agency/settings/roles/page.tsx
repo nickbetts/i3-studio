@@ -13,12 +13,12 @@ import { CreatePanel } from "@/components/create-panel";
 import { EmptyState } from "@/components/empty-state";
 import { db } from "@/db";
 import { customRoles, users } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth-helpers";
+import { requireAgencyPermission } from "@/lib/permissions";
 import { PERMISSION_KEYS, PERMISSION_LABELS, type PermissionKey } from "@/lib/permissions";
 import { assignCustomRole, createCustomRole, deleteCustomRole, updateCustomRole } from "./actions";
 
 export default async function RolesPage() {
-  await requireAdmin();
+  await requireAgencyPermission("manage_roles");
   const [roles, staff] = await Promise.all([
     db.query.customRoles.findMany({ orderBy: asc(customRoles.name) }),
     db.query.users.findMany({ where: inArray(users.role, ["admin", "account_manager", "content_writer"]), orderBy: asc(users.name) }),

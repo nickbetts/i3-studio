@@ -6,7 +6,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { clientAccounts, users } from "@/db/schema";
-import { requireAdmin, requireAgencyUser } from "@/lib/auth-helpers";
+import { requireAgencyUser } from "@/lib/auth-helpers";
+import { requireAgencyPermission } from "@/lib/permissions";
 import { auditLog } from "@/lib/audit";
 import { verifiedUpload, consumeUpload } from "@/lib/upload-server";
 
@@ -14,9 +15,11 @@ const teammateSchema = z.object({ name: z.string().trim().min(2), email: z.strin
 const tabs = ["dashboard", "projects", "approvals", "designs", "support"] as const;
 
 export async function createTeammate(formData: FormData): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requireAgencyPermission("manage_users");
   const parsed = teammateSchema.safeParse({ name: formData.get("name"), email: formData.get("email"), password: formData.get("password"), role: formData.get("role") || "account_manager" });
   if (!parsed.success) return;
+  // Only true admins can mint another admin; a manage_users grant alone must not allow that escalation.
+  if (parsed.data.role === "admin" && actor.role !== "admin") throw new Error("Only an administrator can create another admin.");
   const email = parsed.data.email.toLowerCase();
   const existing = await db.query.users.findFirst({ where: eq(users.email, email) });
   if (existing) return;
@@ -47,7 +50,7 @@ export async function updateUserAvatar(_prev: AvatarState, formData: FormData): 
 }
 
 export async function updateUserAccess(formData: FormData): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requireAgencyPermission("manage_users");
   const userId = String(formData.get("userId") || "");
   const role = String(formData.get("role") || "account_manager");
   const allowed = tabs.filter((tab) => formData.get(`tab-${tab}`) === "on");
@@ -55,24 +58,27 @@ export async function updateUserAccess(formData: FormData): Promise<void> {
   if (userId === actor.id && role !== "admin") throw new Error("You cannot remove your own administrator access.");
   const target = await db.query.users.findFirst({ where: eq(users.id, userId) });
   if (!target || target.role === "client") throw new Error("Internal user not found.");
+  // Only true admins can grant/keep the admin base role; a manage_users grant alone must not allow that escalation.
+  if ((role === "admin" || target.role === "admin") && actor.role !== "admin") throw new Error("Only an administrator can change admin access.");
   await db.update(users).set({ role: role as "admin" | "account_manager" | "content_writer" | "client", permissions: { tabs: allowed } }).where(eq(users.id, userId));
   await auditLog({ actorUserId: actor.id, action: "user.access_updated", entityType: "user", entityId: userId, metadata: { role, tabs: allowed } });
   revalidatePath("/agency/settings");
 }
 
 export async function removeTeammate(formData: FormData): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requireAgencyPermission("manage_users");
   const userId = String(formData.get("userId") || "");
   if (!userId || userId === actor.id) return;
   const target = await db.query.users.findFirst({ where: eq(users.id, userId) });
   if (!target || target.role === "client") return;
+  if (target.role === "admin" && actor.role !== "admin") throw new Error("Only an administrator can remove another admin.");
   await db.update(users).set({ status: "disabled" }).where(eq(users.id, userId));
   await auditLog({ actorUserId: actor.id, action: "teammate.removed", entityType: "user", entityId: userId, metadata: { email: target.email, role: target.role } });
   revalidatePath("/agency/settings");
 }
 
 export async function updateClientTabs(formData: FormData): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requireAgencyPermission("manage_clients");
   const clientAccountId = String(formData.get("clientAccountId") || "");
   const visibleTabs = tabs.filter((tab) => formData.get(`client-tab-${tab}`) === "on");
   if (!clientAccountId) return;
@@ -82,7 +88,7 @@ export async function updateClientTabs(formData: FormData): Promise<void> {
 }
 
 export async function createClientUser(formData: FormData): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requireAgencyPermission("manage_clients");
   const clientAccountId = String(formData.get("clientAccountId") || "");
   const parsed = z.object({ name: z.string().trim().min(2), email: z.string().trim().email(), password: z.string().min(8), clientRole: z.string().trim().min(2) }).safeParse({ name: formData.get("name"), email: formData.get("email"), password: formData.get("password"), clientRole: formData.get("clientRole") });
   if (!clientAccountId || !parsed.success) return;
@@ -94,7 +100,7 @@ export async function createClientUser(formData: FormData): Promise<void> {
 }
 
 export async function updateClientUser(formData: FormData): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requireAgencyPermission("manage_clients");
   const userId = String(formData.get("userId") || "");
   const clientAccountId = String(formData.get("clientAccountId") || "");
   const clientRole = String(formData.get("clientRole") || "").trim();
@@ -106,7 +112,7 @@ export async function updateClientUser(formData: FormData): Promise<void> {
 }
 
 export async function removeClientUser(formData: FormData): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requireAgencyPermission("manage_clients");
   const userId = String(formData.get("userId") || "");
   const clientAccountId = String(formData.get("clientAccountId") || "");
   if (!userId || !clientAccountId) return;
@@ -116,7 +122,7 @@ export async function removeClientUser(formData: FormData): Promise<void> {
 }
 
 export async function removeClientAccount(formData: FormData): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requireAgencyPermission("manage_clients");
   const clientAccountId = String(formData.get("clientAccountId") || "");
   if (!clientAccountId) return;
   await db.update(clientAccounts).set({ status: "paused" }).where(eq(clientAccounts.id, clientAccountId));

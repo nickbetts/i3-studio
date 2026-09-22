@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { savedTaskViews, taskActivities, taskAssignments, taskComments, taskDependencies, tasks } from "@/db/schema";
-import { requireAgencyUser, requireManager } from "@/lib/auth-helpers";
+import { requireAgencyUser } from "@/lib/auth-helpers";
+import { hasPermission, requireAgencyPermission } from "@/lib/permissions";
 import { auditLog } from "@/lib/audit";
 import { consumeUpload, verifiedUpload } from "@/lib/upload-server";
 
@@ -26,7 +27,7 @@ async function recordActivity(taskId: string, actorUserId: string, action: strin
 }
 
 export async function createTask(formData: FormData): Promise<void> {
-  const actor = await requireManager();
+  const actor = await requireAgencyPermission("manage_tasks");
   const parsed = taskSchema.safeParse({
     clientAccountId: formData.get("clientAccountId"),
     projectId: formData.get("projectId") || undefined,
@@ -62,13 +63,13 @@ export async function createTask(formData: FormData): Promise<void> {
   revalidatePath("/portal");
 }
 
-// Managers can act on any task; anyone else may only act on a task assigned to them —
-// this lets writers move their own work along without granting them reassignment rights.
+// Managers (or anyone granted manage_tasks) can act on any task; anyone else may only act on
+// a task assigned to them — this lets writers move their own work along without granting reassignment rights.
 async function requireTaskAccess(taskId: string) {
   const actor = await requireAgencyUser();
   const task = await db.query.tasks.findFirst({ where: eq(tasks.id, taskId) });
   if (!task) return null;
-  const isManager = actor.role === "admin" || actor.role === "account_manager";
+  const isManager = await hasPermission(actor, "manage_tasks");
   const assignment = !isManager ? await db.query.taskAssignments.findFirst({ where: and(eq(taskAssignments.taskId, taskId), eq(taskAssignments.userId, actor.id)) }) : null;
   if (!isManager && !assignment && task.assignedToUserId !== actor.id) return null;
   return { actor, task };
@@ -116,7 +117,7 @@ export async function updateTaskDueDate(taskId: string, dueDate: string | null):
 }
 
 export async function updateTaskAssignees(taskId: string, assignedToUserIds: string[]): Promise<void> {
-  const actor = await requireManager();
+  const actor = await requireAgencyPermission("manage_tasks");
   const task = await db.query.tasks.findFirst({ where: eq(tasks.id, taskId) });
   if (!task) return;
   const uniqueUserIds = [...new Set(assignedToUserIds.filter(Boolean))];
@@ -129,7 +130,7 @@ export async function updateTaskAssignees(taskId: string, assignedToUserIds: str
 }
 
 export async function updateTaskTeam(taskId: string, assignedTeamId: string | null): Promise<void> {
-  const actor = await requireManager();
+  const actor = await requireAgencyPermission("manage_tasks");
   const task = await db.query.tasks.findFirst({ where: eq(tasks.id, taskId) });
   if (!task) return;
   await db.update(tasks).set({ assignedTeamId, updatedAt: new Date() }).where(eq(tasks.id, taskId));
@@ -181,14 +182,14 @@ export async function deleteTaskComment(formData: FormData): Promise<void> {
   if (!commentId || !taskId) return;
   const comment = await db.query.taskComments.findFirst({ where: eq(taskComments.id, commentId) });
   if (!comment) return;
-  const isManager = actor.role === "admin" || actor.role === "account_manager";
+  const isManager = await hasPermission(actor, "manage_tasks");
   if (!isManager && comment.authorUserId !== actor.id) return;
   await db.delete(taskComments).where(eq(taskComments.id, commentId));
   revalidatePath("/agency/tasks");
 }
 
 export async function bulkUpdateTasks(taskIds: string[], patch: { status?: "open" | "in_progress" | "blocked" | "done"; assignedToUserId?: string | null }): Promise<void> {
-  const actor = await requireManager();
+  const actor = await requireAgencyPermission("manage_tasks");
   if (taskIds.length === 0) return;
   const set: Record<string, unknown> = { updatedAt: new Date() };
   if (patch.status) set.status = patch.status;

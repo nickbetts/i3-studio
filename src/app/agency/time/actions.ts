@@ -6,7 +6,8 @@ import { z } from "zod";
 import { db } from "@/db";
 import { activeTimers, clientServiceAllocations, clientTimeBudgets, projects, taskActivities, tasks, timeEntries } from "@/db/schema";
 import { auditLog } from "@/lib/audit";
-import { requireAgencyUser, requireManager } from "@/lib/auth-helpers";
+import { requireAgencyUser } from "@/lib/auth-helpers";
+import { requireAgencyPermission } from "@/lib/permissions";
 import { SERVICE_ALLOCATIONS, serviceAllocation } from "@/lib/service-allocations";
 
 const timerInput = z.object({
@@ -62,7 +63,7 @@ export async function stopTimer(): Promise<{ ok: boolean; error?: string; durati
 }
 
 export async function setClientTimeBudget(formData: FormData): Promise<void> {
-  const actor = await requireManager();
+  const actor = await requireAgencyPermission("manage_billing");
   const clientAccountId = String(formData.get("clientAccountId") || "");
   const periodStart = new Date(`${String(formData.get("periodStart") || "")}T00:00:00.000Z`);
   const periodEnd = new Date(`${String(formData.get("periodEnd") || "")}T23:59:59.999Z`);
@@ -75,7 +76,7 @@ export async function setClientTimeBudget(formData: FormData): Promise<void> {
 }
 
 export async function setClientServiceAllocations(formData: FormData): Promise<void> {
-  const actor = await requireManager();
+  const actor = await requireAgencyPermission("manage_billing");
   const clientAccountId = String(formData.get("clientAccountId") || "");
   const periodStart = new Date(`${String(formData.get("periodStart") || "")}T00:00:00.000Z`);
   const periodEnd = new Date(`${String(formData.get("periodEnd") || "")}T23:59:59.999Z`);
@@ -99,7 +100,7 @@ export async function setClientServiceAllocations(formData: FormData): Promise<v
 }
 
 export async function deleteClientTimeBudget(formData: FormData): Promise<void> {
-  const actor = await requireManager();
+  const actor = await requireAgencyPermission("manage_billing");
   const budgetId = String(formData.get("budgetId") || "");
   if (!budgetId) return;
   await db.delete(clientTimeBudgets).where(eq(clientTimeBudgets.id, budgetId));

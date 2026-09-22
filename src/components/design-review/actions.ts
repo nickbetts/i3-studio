@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { annotationComments, annotations, designAssets, designVersions } from "@/db/schema";
 import { getCurrentUser, isAgencyRole } from "@/lib/auth-helpers";
+import { hasPermission } from "@/lib/permissions";
 import { auditLog } from "@/lib/audit";
 import { verifiedUpload } from "@/lib/upload-server";
 
@@ -79,7 +80,7 @@ export type UploadVersionState = { error?: string; success?: string };
 // Uploading a new version re-opens the design for review and keeps every prior image accessible.
 export async function uploadDesignVersion(_prev: UploadVersionState, formData: FormData): Promise<UploadVersionState> {
   const actor = await getCurrentUser();
-  if (!actor || !isAgencyRole(actor.role)) return { error: "Only the agency team can upload new versions." };
+  if (!actor || !isAgencyRole(actor.role) || !(await hasPermission(actor, "manage_designs"))) return { error: "You don't have permission to upload new versions." };
   const designAssetId = String(formData.get("designAssetId") ?? "");
   const design = await db.query.designAssets.findFirst({ where: eq(designAssets.id, designAssetId), with: { versions: true } });
   if (!design) return { error: "Design not found." };
