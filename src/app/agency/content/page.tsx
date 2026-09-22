@@ -1,12 +1,13 @@
 import { desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
-import { FileText, PenLine } from "lucide-react";
+import { PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/page-header";
 import { CreatePanel } from "@/components/create-panel";
 import { EmptyState } from "@/components/empty-state";
@@ -82,19 +83,31 @@ export default async function AgencyContentPage() {
           {items.length === 0 ? (
             <EmptyState icon={PenLine} title="No content yet" description="Create a draft above to get started." />
           ) : (
-            <div className="divide-y divide-border/60">
-              {items.map((item) => (
-                <Link key={item.id} href={`/agency/content/${item.id}`} className="flex flex-wrap items-center justify-between gap-3 py-3 transition-colors hover:bg-muted/30">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><FileText className="size-4" /></span>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{item.title}</p>
-                      <p className="truncate text-xs text-muted-foreground">{clientName(item.clientAccountId)} · {assigneeName(item.assignedToUserId)} · updated {formatDistanceToNow(new Date(item.updatedAt), { addSuffix: true })}</p>
-                    </div>
-                  </div>
-                  <StatusBadge status={item.status} label={CONTENT_STATUS_LABELS[item.status as ContentStatus]} />
-                </Link>
-              ))}
+            <div className="overflow-hidden rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Assignee</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Updated</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {items.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="max-w-72 whitespace-normal">
+                        <Link href={`/agency/content/${item.id}`} className="font-medium hover:underline">{item.title}</Link>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{clientName(item.clientAccountId)}</TableCell>
+                      <TableCell className="text-muted-foreground">{assigneeName(item.assignedToUserId)}</TableCell>
+                      <TableCell><StatusBadge status={item.status} label={CONTENT_STATUS_LABELS[item.status as ContentStatus]} /></TableCell>
+                      <TableCell className="text-muted-foreground">{formatDistanceToNow(new Date(item.updatedAt), { addSuffix: true })}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
