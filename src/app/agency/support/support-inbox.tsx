@@ -28,11 +28,11 @@ export type Ticket = {
   messages: Message[];
 };
 
-const STATUS_FILTERS = ["all", "open", "pending", "resolved", "closed"] as const;
+const STATUS_FILTERS = ["active", "all", "open", "pending", "resolved", "closed"] as const;
 
 export function SupportInbox({ tickets }: { tickets: Ticket[] }) {
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("all");
+  const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("active");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reply, setReply] = useState("");
   const [replyFile, setReplyFile] = useState<File | null>(null);
@@ -40,7 +40,7 @@ export function SupportInbox({ tickets }: { tickets: Ticket[] }) {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return tickets.filter((ticket) => (statusFilter === "all" || ticket.status === statusFilter) && (!q || ticket.subject.toLowerCase().includes(q) || ticket.clientName.toLowerCase().includes(q)));
+    return tickets.filter((ticket) => (statusFilter === "all" || (statusFilter === "active" ? ["open", "pending"].includes(ticket.status) : ticket.status === statusFilter)) && (!q || ticket.subject.toLowerCase().includes(q) || ticket.clientName.toLowerCase().includes(q)));
   }, [tickets, query, statusFilter]);
 
   const selected = tickets.find((ticket) => ticket.id === selectedId) ?? null;
@@ -77,7 +77,7 @@ export function SupportInbox({ tickets }: { tickets: Ticket[] }) {
         <div className="flex flex-wrap gap-2">
           {STATUS_FILTERS.map((value) => (
             <Button key={value} size="sm" aria-pressed={statusFilter === value} variant={statusFilter === value ? "secondary" : "ghost"} className="capitalize" onClick={() => setStatusFilter(value)}>
-              {value} <span className="ml-1 text-xs text-muted-foreground">{value === "all" ? tickets.length : tickets.filter((ticket) => ticket.status === value).length}</span>
+              {value === "active" ? "Open & pending" : value} <span className="ml-1 text-xs text-muted-foreground">{value === "all" ? tickets.length : value === "active" ? tickets.filter((ticket) => ["open", "pending"].includes(ticket.status)).length : tickets.filter((ticket) => ticket.status === value).length}</span>
             </Button>
           ))}
         </div>

@@ -17,11 +17,11 @@ import { replyToTicket } from "./actions";
 type Message = { id: string; body: string; direction: string; channel: string; authorEmail: string | null; createdAt: string | Date; attachmentUrl: string | null; attachmentName: string | null };
 type Ticket = { id: string; subject: string; status: string; priority: string; updatedAt: string | Date; messages: Message[] };
 const PAGE_SIZE = 10;
-const STATUS_FILTERS = ["all", "open", "pending", "resolved", "closed"] as const;
+const STATUS_FILTERS = ["active", "all", "open", "pending", "resolved", "closed"] as const;
 
 export function TicketTable({ tickets, clientAccountId }: { tickets: Ticket[]; clientAccountId: string }) {
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("all");
+  const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("active");
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reply, setReply] = useState("");
@@ -30,7 +30,7 @@ export function TicketTable({ tickets, clientAccountId }: { tickets: Ticket[]; c
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return tickets.filter((ticket) => (!q || ticket.subject.toLowerCase().includes(q)) && (statusFilter === "all" || ticket.status === statusFilter));
+    return tickets.filter((ticket) => (!q || ticket.subject.toLowerCase().includes(q)) && (statusFilter === "all" || (statusFilter === "active" ? ["open", "pending"].includes(ticket.status) : ticket.status === statusFilter)));
   }, [tickets, query, statusFilter]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageTickets = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -72,7 +72,7 @@ export function TicketTable({ tickets, clientAccountId }: { tickets: Ticket[]; c
         </div>
         <div className="flex flex-wrap gap-1">
           {STATUS_FILTERS.map((option) => (
-            <Button key={option} type="button" size="sm" variant={statusFilter === option ? "default" : "outline"} className="capitalize" onClick={() => { setStatusFilter(option); setPage(1); }}>{option}</Button>
+            <Button key={option} type="button" size="sm" variant={statusFilter === option ? "default" : "outline"} className="capitalize" onClick={() => { setStatusFilter(option); setPage(1); }}>{option === "active" ? "Open & pending" : option}</Button>
           ))}
         </div>
       </div>
