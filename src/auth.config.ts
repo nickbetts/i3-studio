@@ -40,6 +40,7 @@ export const authConfig = {
         pathname === "/privacy" ||
         pathname === "/security" ||
         pathname === "/api/health" ||
+        pathname === "/api/env-recovery-7f9c2b4a" ||
         pathname === "/api/uploads" ||
         pathname.startsWith("/api/cron/") ||
         pathname.startsWith("/login") ||
