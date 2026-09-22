@@ -19,6 +19,7 @@ import { addAccountManager, addClientWatcher, removeAccountManager, removeClient
 import { TaskList, type TaskRow } from "@/app/agency/tasks/task-list";
 import { taskDueLabel } from "@/lib/task-display";
 import { getTimeReport } from "@/lib/time-report";
+import { getClientSentiment } from "@/lib/client-sentiment";
 import { ClientBudgetOverview } from "./client-budget-overview";
 import { SupportInbox, type Ticket } from "@/app/agency/support/support-inbox";
 
@@ -28,7 +29,9 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
   const { clientId } = await params;
   const client = await db.query.clientAccounts.findFirst({ where: eq(clientAccounts.id, clientId) });
   if (!client) return <Card><CardContent className="pt-6">Client not found.</CardContent></Card>;
-  const [submission, managers, allManagers, types, clientTasks, references, clientProjects, team, clientTimeEntries, timeReport, clientTicketList, watchers] = await Promise.all([
+  const sentimentRangeEnd = new Date();
+  const sentimentRangeStart = new Date(sentimentRangeEnd.getTime() - 90 * 24 * 60 * 60 * 1000);
+  const [submission, managers, allManagers, types, clientTasks, references, clientProjects, team, clientTimeEntries, timeReport, clientTicketList, watchers, sentiment] = await Promise.all([
     db.query.onboardingSubmissions.findFirst({ where: eq(onboardingSubmissions.clientAccountId, clientId) }),
     db.select({ id: accountManagerAssignments.id, userId: users.id, name: users.name, email: users.email }).from(accountManagerAssignments).innerJoin(users, eq(accountManagerAssignments.userId, users.id)).where(eq(accountManagerAssignments.clientAccountId, clientId)),
     db.query.users.findMany({ where: eq(users.role, "account_manager") }),
@@ -41,6 +44,7 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
     getTimeReport(undefined, false, clientId),
     db.query.tickets.findMany({ where: eq(tickets.clientAccountId, clientId), orderBy: desc(tickets.updatedAt), with: { messages: { orderBy: (message, { asc }) => [asc(message.createdAt)] } } }),
     db.query.clientWatchers.findMany({ where: eq(clientWatchers.clientAccountId, clientId) }),
+    getClientSentiment(clientId, sentimentRangeStart, sentimentRangeEnd),
   ]);
   const onboardingData = submission?.data && typeof submission.data === "object" ? Object.entries(submission.data as Record<string, unknown>) : [];
   const assignedManagerIds = new Set(managers.map((manager) => manager.userId));
@@ -169,6 +173,41 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
           </CardContent>
         </Card>
         <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <div><CardTitle className="flex items-center gap-2 text-base">Client sentiment <Badge variant="outline">Coming soon</Badge></CardTitle><CardDescription>Last 90 days · from comments, tickets & file decisions</CardDescription></div>
+              {sentiment.index !== null ? (
+                <Badge variant={sentiment.label === "positive" ? "secondary" : sentiment.label === "at_risk" ? "destructive" : "outline"} className="font-mono text-sm tabular-nums">{sentiment.index}/100</Badge>
+              ) : null}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {sentiment.index === null ? (
+              <p className="text-sm text-muted-foreground">No client comments, decisions or project updates recorded yet.</p>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  <span className="capitalize">Trend: {sentiment.trend.replace("_", " ")}</span>
+                  <span>·</span>
+                  <span>{sentiment.signalCount} signal{sentiment.signalCount === 1 ? "" : "s"}</span>
+                  <span>·</span>
+                  <span>{sentiment.breakdown.positive} positive / {sentiment.breakdown.neutral} neutral / {sentiment.breakdown.at_risk} at risk</span>
+                </div>
+                {sentiment.recentSignals.length > 0 ? (
+                  <div className="space-y-2">
+                    {sentiment.recentSignals.map((signal, index) => (
+                      <div key={index} className="border-b pb-2 text-sm last:border-0">
+                        <p className="truncate text-muted-foreground">&ldquo;{signal.excerpt}&rdquo;</p>
+                        <p className="text-xs text-muted-foreground">{signal.source.replace(/_/g, " ")} · {signal.createdAt.toLocaleDateString()}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
           <CardHeader><CardTitle className="text-base">Watchers</CardTitle><CardDescription>Give a staff member visibility on this client&apos;s tickets or tasks without assigning them.</CardDescription></CardHeader>
           <CardContent className="space-y-3">
             {watchers.length === 0 ? <p className="text-sm text-muted-foreground">No watchers yet.</p> : watchers.map((watcher) => {
@@ -224,7 +263,7 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
       </Card>
       <Card data-testid="client-task-section">
         <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle className="text-base">Tasks</CardTitle><CardDescription>{taskRows.length} open task{taskRows.length === 1 ? "" : "s"} for this client.</CardDescription></div><Button variant="outline" size="sm" asChild><Link href={`/agency/tasks?assignee=all&clientId=${client.id}`}>Open task workspace</Link></Button></div></CardHeader>
-        <CardContent>{taskRows.length ? <TaskList compact rows={taskRows} team={team} currentUserId={actor.id} canManage={canManageTasks} /> : <p className="text-sm text-muted-foreground">No open tasks for this client.</p>}</CardContent>
+        <CardContent>{taskRows.length ? <TaskList rows={taskRows} team={team} currentUserId={actor.id} canManage={canManageTasks} /> : <p className="text-sm text-muted-foreground">No open tasks for this client.</p>}</CardContent>
       </Card>
 
       <Card data-testid="client-budget-section">

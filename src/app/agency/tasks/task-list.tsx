@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { bulkUpdateTasks } from "./actions";
 import { TaskAssignee } from "./task-assignee";
 import { TaskTeamPicker } from "./task-team-picker";
@@ -38,7 +39,7 @@ export type TaskRow = {
 type Member = { id: string; name: string | null; email: string };
 type Team = { id: string; name: string };
 
-export function TaskList({ rows, team, teams = [], currentUserId, canManage, compact = false }: { rows: TaskRow[]; team: Member[]; teams?: Team[]; currentUserId: string; canManage: boolean; compact?: boolean }) {
+export function TaskList({ rows, team, teams = [], currentUserId, canManage }: { rows: TaskRow[]; team: Member[]; teams?: Team[]; currentUserId: string; canManage: boolean }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, start] = useTransition();
 
@@ -68,7 +69,7 @@ export function TaskList({ rows, team, teams = [], currentUserId, canManage, com
   }
 
   return (
-    <div className={compact ? "space-y-2 overflow-x-auto pb-1" : "space-y-2"}>
+    <div className="space-y-2">
       {canManage && selected.size > 0 ? (
         <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 p-2 text-sm">
           <span className="font-medium">{selected.size} selected</span>
@@ -92,29 +93,51 @@ export function TaskList({ rows, team, teams = [], currentUserId, canManage, com
         </div>
       ) : null}
 
-      {rows.map((task) => {
-        const canEditTask = canManage || task.assignedToUserIds.includes(currentUserId);
-        return (
-          <div key={task.id} data-testid={`task-${task.id}`} className={compact ? "grid gap-3 border-b py-3 last:border-0 md:min-w-[48rem] md:grid-cols-[minmax(8rem,1fr)_auto] md:items-center" : "grid gap-3 border-b py-4 last:border-0 lg:grid-cols-[minmax(15rem,1fr)_auto] lg:items-center"}>
-            <div className="flex min-w-0 items-start gap-3">
-              {canManage ? <Checkbox className="mt-1" checked={selected.has(task.id)} onCheckedChange={() => toggle(task.id)} aria-label={`Select ${task.title}`} /> : null}
-              <div className="min-w-0">
-                <TaskDetailDialog taskId={task.id} title={task.title} currentUserId={currentUserId} canEdit={canEditTask} />
-                <p className="mt-1 truncate text-xs text-muted-foreground">{task.meta}</p>
-              </div>
-            </div>
-            <div data-testid="task-row-controls" className={compact ? "flex min-w-0 flex-wrap items-center gap-2 md:flex-nowrap md:justify-end md:whitespace-nowrap [&_[data-slot=select-trigger]]:w-28" : "flex min-w-0 flex-wrap items-center gap-2 lg:justify-end"}>
-              <TaskPriorityPicker taskId={task.id} value={task.priority} editable={canEditTask} />
-              <TaskDueDatePicker taskId={task.id} value={task.dueDate} editable={canEditTask} />
-              {task.timeSeconds > 0 ? <Badge variant="outline" className="gap-1 font-mono tabular-nums"><Clock3 className="size-3" />{formatLoggedTime(task.timeSeconds)}</Badge> : null}
-              <TaskTimerButton clientAccountId={task.clientAccountId} projectId={task.projectId} taskId={task.id} clientName={task.clientName} projectName={task.projectName} taskTitle={task.title} />
-              <TaskAssignee taskId={task.id} assignedToUserIds={task.assignedToUserIds} team={team} editable={canManage} />
-              {teams.length > 0 ? <TaskTeamPicker taskId={task.id} assignedTeamId={task.assignedTeamId} teams={teams} editable={canManage} /> : null}
-              {canEditTask ? <TaskStatus taskId={task.id} value={task.status} /> : <Badge variant="outline" className="capitalize">{task.status.replace("_", " ")}</Badge>}
-            </div>
-          </div>
-        );
-      })}
+      <div className="overflow-hidden rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {canManage ? <TableHead className="w-10"></TableHead> : null}
+              <TableHead>Task</TableHead>
+              <TableHead>Priority</TableHead>
+              <TableHead>Due</TableHead>
+              <TableHead>Time</TableHead>
+              <TableHead>Assignee</TableHead>
+              {teams.length > 0 ? <TableHead>Team</TableHead> : null}
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((task) => {
+              const canEditTask = canManage || task.assignedToUserIds.includes(currentUserId);
+              return (
+                <TableRow key={task.id} data-testid={`task-${task.id}`}>
+                  {canManage ? (
+                    <TableCell>
+                      <Checkbox checked={selected.has(task.id)} onCheckedChange={() => toggle(task.id)} aria-label={`Select ${task.title}`} />
+                    </TableCell>
+                  ) : null}
+                  <TableCell className="max-w-72 whitespace-normal">
+                    <TaskDetailDialog taskId={task.id} title={task.title} currentUserId={currentUserId} canEdit={canEditTask} />
+                    <p className="mt-1 truncate text-xs text-muted-foreground">{task.meta}</p>
+                  </TableCell>
+                  <TableCell><TaskPriorityPicker taskId={task.id} value={task.priority} editable={canEditTask} /></TableCell>
+                  <TableCell><TaskDueDatePicker taskId={task.id} value={task.dueDate} editable={canEditTask} /></TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1.5">
+                      {task.timeSeconds > 0 ? <Badge variant="outline" className="gap-1 font-mono tabular-nums"><Clock3 className="size-3" />{formatLoggedTime(task.timeSeconds)}</Badge> : null}
+                      <TaskTimerButton clientAccountId={task.clientAccountId} projectId={task.projectId} taskId={task.id} clientName={task.clientName} projectName={task.projectName} taskTitle={task.title} />
+                    </div>
+                  </TableCell>
+                  <TableCell><TaskAssignee taskId={task.id} assignedToUserIds={task.assignedToUserIds} team={team} editable={canManage} /></TableCell>
+                  {teams.length > 0 ? <TableCell><TaskTeamPicker taskId={task.id} assignedTeamId={task.assignedTeamId} teams={teams} editable={canManage} /></TableCell> : null}
+                  <TableCell>{canEditTask ? <TaskStatus taskId={task.id} value={task.status} /> : <Badge variant="outline" className="capitalize">{task.status.replace("_", " ")}</Badge>}</TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

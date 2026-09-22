@@ -13,6 +13,7 @@ import { requireAgencyUser } from "@/lib/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
 import { formatDuration, getStaffPerformanceReport } from "@/lib/staff-report";
 import { getOperationsReport } from "@/lib/operations-report";
+import { getSentimentOverview } from "@/lib/client-sentiment";
 import { getTimeReport } from "@/lib/time-report";
 import { budgetUsage } from "@/lib/time-budget";
 import { redirect } from "next/navigation";
@@ -34,7 +35,7 @@ export default async function AgencyReportsPage({ searchParams }: { searchParams
   const rangeStart = from ? new Date(`${from}T00:00:00`) : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   const rangeLabel = from || to ? `${dateInput(rangeStart)} – ${dateInput(rangeEnd)}` : "Last 30 days";
 
-  const [[clients], [tasksOpen], [docsPending], [ticketsOpen], audit, performance, operations, timeReport] = await Promise.all([
+  const [[clients], [tasksOpen], [docsPending], [ticketsOpen], audit, performance, operations, timeReport, sentiment] = await Promise.all([
     db.select({ value: count() }).from(clientAccounts),
     db.select({ value: count() }).from(tasks).where(eq(tasks.status, "open")),
     db.select({ value: count() }).from(documents).where(eq(documents.status, "pending")),
@@ -43,6 +44,7 @@ export default async function AgencyReportsPage({ searchParams }: { searchParams
     getStaffPerformanceReport(rangeStart, rangeEnd),
     getOperationsReport(rangeStart, rangeEnd),
     getTimeReport(undefined, false),
+    getSentimentOverview(rangeStart, rangeEnd),
   ]);
   const metrics = [{ label: "Client accounts", value: clients?.value ?? 0 }, { label: "Open tasks", value: tasksOpen?.value ?? 0 }, { label: "Pending approvals", value: docsPending?.value ?? 0 }, { label: "Open tickets", value: ticketsOpen?.value ?? 0 }];
   const exportHref = `/api/reports/audit-export${from || to ? `?${new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}) }).toString()}` : ""}`;
@@ -71,6 +73,48 @@ export default async function AgencyReportsPage({ searchParams }: { searchParams
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {metrics.map((metric) => <Card key={metric.label}><CardHeader className="pb-2"><CardDescription>{metric.label}</CardDescription><CardTitle className="text-3xl">{metric.value}</CardTitle></CardHeader></Card>)}
       </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div><CardTitle className="flex items-center gap-2 text-base">Client sentiment <Badge variant="outline">Coming soon</Badge></CardTitle><CardDescription>{rangeLabel} · derived from client comments on tickets, designs & content, plus explicit project updates and file decisions</CardDescription></div>
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">Overall</p>
+              <p className="text-3xl font-semibold">{sentiment.overallIndex ?? "—"}{sentiment.overallIndex !== null ? <span className="text-sm font-normal text-muted-foreground">/100</span> : null}</p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {sentiment.clients.every((row) => row.signalCount === 0) ? (
+            <p className="text-sm text-muted-foreground">No client comments, decisions or project updates recorded in this range yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Client</TableHead>
+                    <TableHead className="text-right">Score</TableHead>
+                    <TableHead>Trend</TableHead>
+                    <TableHead className="text-right">Signals</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sentiment.clients.filter((row) => row.signalCount > 0).map((row) => (
+                    <TableRow key={row.clientAccountId}>
+                      <TableCell><a href={`/agency/clients/${row.clientAccountId}`} className="font-medium hover:underline">{row.clientName}</a></TableCell>
+                      <TableCell className="text-right">
+                        <Badge variant={row.label === "positive" ? "secondary" : row.label === "at_risk" ? "destructive" : "outline"} className="font-mono tabular-nums">{row.index}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm capitalize text-muted-foreground">{row.trend.replace("_", " ")}</TableCell>
+                      <TableCell className="text-right tabular-nums">{row.signalCount}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
