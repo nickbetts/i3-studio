@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -76,19 +76,23 @@ export const users = pgTable("user", {
 // ---------------------------------------------------------------------------
 // Custom roles (global, staff-only) — named bundles of permission keys.
 // ---------------------------------------------------------------------------
-export const customRoles = pgTable("custom_role", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  name: text("name").notNull(),
-  description: text("description"),
-  // Array of PermissionKey strings.
-  permissions: jsonb("permissions").notNull().default([]),
-  // Not a strict FK (avoids a users<->customRoles type circularity); audit-only reference.
-  createdByUserId: text("created_by_user_id"),
-  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
-});
+export const customRoles = pgTable(
+  "custom_role",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    name: text("name").notNull(),
+    description: text("description"),
+    // Array of PermissionKey strings.
+    permissions: jsonb("permissions").notNull().default([]),
+    // Not a strict FK (avoids a users<->customRoles type circularity); audit-only reference.
+    createdByUserId: text("created_by_user_id"),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("custom_role_name_idx").on(t.name)],
+);
 
 // ---------------------------------------------------------------------------
 // Teams — named groups of staff, optionally scoped to one client, assignable
@@ -108,7 +112,7 @@ export const teams = pgTable(
     createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   },
-  (t) => [index("team_client_idx").on(t.clientAccountId)],
+  (t) => [index("team_client_idx").on(t.clientAccountId), uniqueIndex("team_global_name_idx").on(t.name).where(sql`${t.clientAccountId} is null`)],
 );
 
 export const teamMembers = pgTable(

@@ -15,6 +15,19 @@ const DEFAULT_CLIENT_TYPES = [
   { key: "campaign", label: "Campaign / Marketing" },
 ];
 
+const DEFAULT_TEAMS = ["Content", "PPC", "Social", "Account Managers", "Design", "Development", "Technical", "Management"];
+
+const DEFAULT_CUSTOM_ROLES: { name: string; description: string; permissions: string[] }[] = [
+  { name: "Content", description: "Blog, copy and on-site content production.", permissions: ["manage_content", "manage_tasks", "manage_tickets"] },
+  { name: "PPC", description: "Paid search and paid social campaigns.", permissions: ["manage_tasks", "manage_tickets", "view_reports"] },
+  { name: "Social", description: "Organic social content and community management.", permissions: ["manage_content", "manage_tasks", "manage_tickets"] },
+  { name: "Account Managers", description: "Day-to-day client ownership.", permissions: ["manage_clients", "manage_tasks", "manage_tickets", "manage_content", "manage_designs", "view_reports"] },
+  { name: "Design", description: "Design assets and review.", permissions: ["manage_designs", "manage_tasks", "manage_tickets"] },
+  { name: "Development", description: "Build and engineering work.", permissions: ["manage_tasks", "manage_tickets"] },
+  { name: "Technical", description: "Technical/ops support and integrations.", permissions: ["manage_tasks", "manage_tickets", "manage_settings"] },
+  { name: "Management", description: "Agency leadership.", permissions: ["manage_teams", "manage_clients", "manage_users", "manage_billing", "view_reports"] },
+];
+
 // Seeds lookup defaults without ever overwriting rows an admin has since edited.
 async function seedDefaults() {
   for (const type of DEFAULT_CLIENT_TYPES) {
@@ -35,6 +48,17 @@ async function seedDefaults() {
     "INSERT INTO onboarding_flow (id, name, client_type_id, steps) VALUES ($1, $2, NULL, $3::jsonb) ON CONFLICT (name) DO NOTHING",
     [randomUUID(), "Standard onboarding", JSON.stringify(DEFAULT_ONBOARDING_FLOW_STEPS)],
   );
+
+  for (const name of DEFAULT_TEAMS) {
+    await database.query("INSERT INTO team (id, name) VALUES ($1, $2) ON CONFLICT (name) WHERE client_account_id IS NULL DO NOTHING", [randomUUID(), name]);
+  }
+
+  for (const role of DEFAULT_CUSTOM_ROLES) {
+    await database.query(
+      "INSERT INTO custom_role (id, name, description, permissions) VALUES ($1, $2, $3, $4::jsonb) ON CONFLICT (name) DO NOTHING",
+      [randomUUID(), role.name, role.description, JSON.stringify(role.permissions)],
+    );
+  }
 }
 
 async function main() {
@@ -117,6 +141,8 @@ await database.transaction([
   database.query("CREATE INDEX IF NOT EXISTS client_watcher_user_idx ON client_watcher (user_id)"),
   database.query("ALTER TABLE task ADD COLUMN IF NOT EXISTS assigned_team_id text REFERENCES team(id) ON DELETE SET NULL"),
   database.query("ALTER TABLE ticket ADD COLUMN IF NOT EXISTS assigned_team_id text REFERENCES team(id) ON DELETE SET NULL"),
+  database.query("CREATE UNIQUE INDEX IF NOT EXISTS custom_role_name_idx ON custom_role (name)"),
+  database.query("CREATE UNIQUE INDEX IF NOT EXISTS team_global_name_idx ON team (name) WHERE client_account_id IS NULL"),
 ]);
 await seedDefaults();
 console.log("Additive authentication and webhook safeguards ready. Existing data was not reset.");
