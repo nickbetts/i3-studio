@@ -46,7 +46,7 @@ const STATUS_RANK: Record<string, number> = { open: 0, in_progress: 1, blocked: 
 export default async function AgencyTasksPage({ searchParams }: { searchParams: Promise<{ assignee?: string; clientId?: string; projectId?: string; status?: string; priority?: string; sort?: string }> }) {
   const user = await requireAgencyUser();
   const canCreateTasks = await hasPermission(user, "create_tasks");
-  const canManage = await hasPermission(user, "manage_all_tasks");
+  const canManage = await hasPermission(user, "edit_tasks");
   const { assignee = "me", clientId = "", projectId = "", status = "open_items", priority = "all", sort = "due" } = await searchParams;
 
   const [clients, team, allProjects, loggedTime, savedViews, myAssignments, teamsList] = await Promise.all([

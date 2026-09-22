@@ -13,7 +13,7 @@ const teamSchema = z.object({ name: z.string().trim().min(2), description: z.str
 
 export async function createTeam(formData: FormData): Promise<void> {
   const actor = await requireAgencyUser();
-  await requirePermission(actor, "manage_teams");
+  await requirePermission(actor, "edit_teams");
   const parsed = teamSchema.safeParse({ name: formData.get("name"), description: formData.get("description") || undefined, clientAccountId: formData.get("clientAccountId") || undefined });
   if (!parsed.success) return;
   const [team] = await db.insert(teams).values({ name: parsed.data.name, description: parsed.data.description, clientAccountId: parsed.data.clientAccountId || null, createdByUserId: actor.id }).returning({ id: teams.id });
@@ -23,7 +23,7 @@ export async function createTeam(formData: FormData): Promise<void> {
 
 export async function setTeamArchived(formData: FormData): Promise<void> {
   const actor = await requireAgencyUser();
-  await requirePermission(actor, "manage_teams");
+  await requirePermission(actor, "edit_teams");
   const teamId = String(formData.get("teamId") || "");
   const archived = formData.get("archived") === "true";
   if (!teamId) return;
@@ -34,7 +34,7 @@ export async function setTeamArchived(formData: FormData): Promise<void> {
 
 export async function addTeamMember(formData: FormData): Promise<void> {
   const actor = await requireAgencyUser();
-  await requirePermission(actor, "manage_teams");
+  await requirePermission(actor, "edit_teams");
   const teamId = String(formData.get("teamId") || "");
   const userId = String(formData.get("userId") || "");
   if (!teamId || !userId) return;
@@ -45,7 +45,7 @@ export async function addTeamMember(formData: FormData): Promise<void> {
 
 export async function removeTeamMember(formData: FormData): Promise<void> {
   const actor = await requireAgencyUser();
-  await requirePermission(actor, "manage_teams");
+  await requirePermission(actor, "edit_teams");
   const teamId = String(formData.get("teamId") || "");
   const userId = String(formData.get("userId") || "");
   if (!teamId || !userId) return;

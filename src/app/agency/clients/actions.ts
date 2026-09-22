@@ -78,7 +78,7 @@ export async function resetClientOnboarding(formData: FormData): Promise<void> {
 }
 
 export async function addAccountManager(formData: FormData): Promise<void> {
-  const actor = await requireAgencyPermission("manage_account_managers");
+  const actor = await requireAgencyPermission("assign_account_managers");
   const clientAccountId = String(formData.get("clientAccountId") || "");
   const userId = String(formData.get("userId") || "");
   if (!clientAccountId || !userId) return;
@@ -88,7 +88,7 @@ export async function addAccountManager(formData: FormData): Promise<void> {
 }
 
 export async function removeAccountManager(formData: FormData): Promise<void> {
-  const actor = await requireAgencyPermission("manage_account_managers");
+  const actor = await requireAgencyPermission("assign_account_managers");
   const assignmentId = String(formData.get("assignmentId") || "");
   const clientAccountId = String(formData.get("clientAccountId") || "");
   if (!assignmentId) return;
@@ -115,7 +115,7 @@ export async function updateClientDetails(formData: FormData): Promise<void> {
 // Grants an internal user (e.g. a director) visibility/notifications for one specific client
 // without giving them access to every client's tickets or tasks.
 export async function addClientWatcher(formData: FormData): Promise<void> {
-  const actor = await requireAgencyPermission("manage_client_watchers");
+  const actor = await requireAgencyPermission("edit_client_watchers");
   const clientAccountId = String(formData.get("clientAccountId") || "");
   const userId = String(formData.get("userId") || "");
   const notifyTickets = formData.get("notifyTickets") === "on";
@@ -127,7 +127,7 @@ export async function addClientWatcher(formData: FormData): Promise<void> {
 }
 
 export async function removeClientWatcher(formData: FormData): Promise<void> {
-  const actor = await requireAgencyPermission("manage_client_watchers");
+  const actor = await requireAgencyPermission("edit_client_watchers");
   const watcherId = String(formData.get("watcherId") || "");
   const clientAccountId = String(formData.get("clientAccountId") || "");
   if (!watcherId) return;

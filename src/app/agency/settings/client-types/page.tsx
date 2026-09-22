@@ -13,7 +13,7 @@ import { requireAgencyPermission } from "@/lib/permissions";
 import { createClientType, setClientTypeArchived } from "./actions";
 
 export default async function ClientTypesPage() {
-  await requireAgencyPermission("manage_client_types");
+  await requireAgencyPermission("edit_client_types");
   const types = await db.query.clientTypes.findMany({ orderBy: asc(clientTypes.label) });
 
   return (

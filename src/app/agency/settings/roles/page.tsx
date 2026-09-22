@@ -40,7 +40,7 @@ function PermissionCheckboxes({ namePrefix, defaultGranted }: { namePrefix: stri
 
 export default async function RolesPage() {
   const actor = await requireAgencyUser();
-  const canManageRoles = await hasPermission(actor, "manage_roles");
+  const canManageRoles = await hasPermission(actor, "edit_roles");
   const canAssignRoles = await hasPermission(actor, "assign_roles");
   if (!canManageRoles && !canAssignRoles) redirect("/agency");
   const [roles, staff] = await Promise.all([

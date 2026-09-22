@@ -9,7 +9,7 @@ import { auditLog } from "@/lib/audit";
 import type { OnboardingFlowStep } from "@/lib/onboarding-flow";
 
 export async function createOnboardingFlow(formData: FormData): Promise<void> {
-  const actor = await requireAgencyPermission("manage_onboarding_flows");
+  const actor = await requireAgencyPermission("edit_onboarding_flows");
   const name = String(formData.get("name") ?? "").trim();
   if (name.length < 2) return;
   const clientTypeId = String(formData.get("clientTypeId") ?? "") || null;
@@ -20,7 +20,7 @@ export async function createOnboardingFlow(formData: FormData): Promise<void> {
 }
 
 export async function saveOnboardingFlow(flowId: string, name: string, clientTypeId: string | null, steps: OnboardingFlowStep[]): Promise<void> {
-  const actor = await requireAgencyPermission("manage_onboarding_flows");
+  const actor = await requireAgencyPermission("edit_onboarding_flows");
   if (!flowId || name.trim().length < 2) return;
   await db.update(onboardingFlows).set({ name: name.trim(), clientTypeId, steps, updatedAt: new Date() }).where(eq(onboardingFlows.id, flowId));
   await auditLog({ actorUserId: actor.id, action: "onboarding_flow.updated", entityType: "onboarding_flow", entityId: flowId, metadata: { stepCount: steps.length } });
@@ -28,7 +28,7 @@ export async function saveOnboardingFlow(flowId: string, name: string, clientTyp
 }
 
 export async function archiveOnboardingFlow(formData: FormData): Promise<void> {
-  const actor = await requireAgencyPermission("manage_onboarding_flows");
+  const actor = await requireAgencyPermission("edit_onboarding_flows");
   const flowId = String(formData.get("flowId") ?? "");
   if (!flowId) return;
   await db.update(onboardingFlows).set({ archived: true }).where(eq(onboardingFlows.id, flowId));
@@ -37,7 +37,7 @@ export async function archiveOnboardingFlow(formData: FormData): Promise<void> {
 }
 
 export async function duplicateOnboardingFlow(formData: FormData): Promise<void> {
-  const actor = await requireAgencyPermission("manage_onboarding_flows");
+  const actor = await requireAgencyPermission("edit_onboarding_flows");
   const flowId = String(formData.get("flowId") ?? "");
   const original = await db.query.onboardingFlows.findFirst({ where: eq(onboardingFlows.id, flowId) });
   if (!original) return;

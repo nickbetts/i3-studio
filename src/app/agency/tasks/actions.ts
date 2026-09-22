@@ -63,13 +63,13 @@ export async function createTask(formData: FormData): Promise<void> {
   revalidatePath("/portal");
 }
 
-// Managers (or anyone granted manage_all_tasks) can act on any task; anyone else may only act on
+// Managers (or anyone granted edit_tasks) can act on any task; anyone else may only act on
 // a task assigned to them — this lets writers move their own work along without granting reassignment rights.
 async function requireTaskAccess(taskId: string) {
   const actor = await requireAgencyUser();
   const task = await db.query.tasks.findFirst({ where: eq(tasks.id, taskId) });
   if (!task) return null;
-  const isManager = await hasPermission(actor, "manage_all_tasks");
+  const isManager = await hasPermission(actor, "edit_tasks");
   const assignment = !isManager ? await db.query.taskAssignments.findFirst({ where: and(eq(taskAssignments.taskId, taskId), eq(taskAssignments.userId, actor.id)) }) : null;
   if (!isManager && !assignment && task.assignedToUserId !== actor.id) return null;
   return { actor, task };
@@ -117,7 +117,7 @@ export async function updateTaskDueDate(taskId: string, dueDate: string | null):
 }
 
 export async function updateTaskAssignees(taskId: string, assignedToUserIds: string[]): Promise<void> {
-  const actor = await requireAgencyPermission("manage_all_tasks");
+  const actor = await requireAgencyPermission("edit_tasks");
   const task = await db.query.tasks.findFirst({ where: eq(tasks.id, taskId) });
   if (!task) return;
   const uniqueUserIds = [...new Set(assignedToUserIds.filter(Boolean))];
@@ -130,7 +130,7 @@ export async function updateTaskAssignees(taskId: string, assignedToUserIds: str
 }
 
 export async function updateTaskTeam(taskId: string, assignedTeamId: string | null): Promise<void> {
-  const actor = await requireAgencyPermission("manage_all_tasks");
+  const actor = await requireAgencyPermission("edit_tasks");
   const task = await db.query.tasks.findFirst({ where: eq(tasks.id, taskId) });
   if (!task) return;
   await db.update(tasks).set({ assignedTeamId, updatedAt: new Date() }).where(eq(tasks.id, taskId));
@@ -182,14 +182,14 @@ export async function deleteTaskComment(formData: FormData): Promise<void> {
   if (!commentId || !taskId) return;
   const comment = await db.query.taskComments.findFirst({ where: eq(taskComments.id, commentId) });
   if (!comment) return;
-  const isManager = await hasPermission(actor, "moderate_task_comments");
+  const isManager = await hasPermission(actor, "delete_task_comments");
   if (!isManager && comment.authorUserId !== actor.id) return;
   await db.delete(taskComments).where(eq(taskComments.id, commentId));
   revalidatePath("/agency/tasks");
 }
 
 export async function bulkUpdateTasks(taskIds: string[], patch: { status?: "open" | "in_progress" | "blocked" | "done"; assignedToUserId?: string | null }): Promise<void> {
-  const actor = await requireAgencyPermission("manage_all_tasks");
+  const actor = await requireAgencyPermission("edit_tasks");
   if (taskIds.length === 0) return;
   const set: Record<string, unknown> = { updatedAt: new Date() };
   if (patch.status) set.status = patch.status;
@@ -288,7 +288,7 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
     subtasks: subtasks.map((item) => ({ id: item.id, title: item.title, status: item.status })),
     dependencies: dependencies.map((item) => ({ id: item.dependsOnTask.id, title: item.dependsOnTask.title, status: item.dependsOnTask.status })),
     dependencyOptions: dependencyOptions.filter((item) => item.id !== taskId && !dependencies.some((dependency) => dependency.dependsOnTaskId === item.id)),
-    canManage: await hasPermission(actor, "manage_all_tasks"),
+    canManage: await hasPermission(actor, "edit_tasks"),
     activities: activities.map((item) => ({ id: item.id, action: item.action, metadata: item.metadata && typeof item.metadata === "object" ? item.metadata as Record<string, unknown> : null, createdAt: item.createdAt.toISOString(), actorName: item.actor?.name ?? item.actor?.email ?? null })),
     comments: comments.map((comment) => ({ id: comment.id, body: comment.body, authorName: comment.author?.name ?? comment.author?.email ?? null, authorUserId: comment.authorUserId, createdAt: comment.createdAt.toISOString(), attachmentUrl: comment.attachmentUrl, attachmentName: comment.attachmentName })),
   };

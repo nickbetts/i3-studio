@@ -9,7 +9,7 @@ import { auditLog } from "@/lib/audit";
 import type { ProjectDeliverableTemplate, ProjectMilestoneTemplate } from "@/lib/project-templates";
 
 export async function createProjectTemplate(formData: FormData): Promise<void> {
-  const actor = await requireAgencyPermission("manage_project_templates");
+  const actor = await requireAgencyPermission("edit_project_templates");
   const name = String(formData.get("name") ?? "").trim();
   if (name.length < 2) return;
   const clientTypeId = String(formData.get("clientTypeId") ?? "") || null;
@@ -26,7 +26,7 @@ export async function saveProjectTemplate(
   milestones: ProjectMilestoneTemplate[],
   deliverables: ProjectDeliverableTemplate[],
 ): Promise<void> {
-  const actor = await requireAgencyPermission("manage_project_templates");
+  const actor = await requireAgencyPermission("edit_project_templates");
   if (!templateId || name.trim().length < 2) return;
   await db.update(projectTemplates).set({ name: name.trim(), clientTypeId, milestones, deliverables, updatedAt: new Date() }).where(eq(projectTemplates.id, templateId));
   await auditLog({ actorUserId: actor.id, action: "project_template.updated", entityType: "project_template", entityId: templateId, metadata: { milestoneCount: milestones.length, deliverableCount: deliverables.length } });
@@ -34,7 +34,7 @@ export async function saveProjectTemplate(
 }
 
 export async function archiveProjectTemplate(formData: FormData): Promise<void> {
-  const actor = await requireAgencyPermission("manage_project_templates");
+  const actor = await requireAgencyPermission("edit_project_templates");
   const templateId = String(formData.get("templateId") ?? "");
   if (!templateId) return;
   await db.update(projectTemplates).set({ archived: true }).where(eq(projectTemplates.id, templateId));
@@ -43,7 +43,7 @@ export async function archiveProjectTemplate(formData: FormData): Promise<void> 
 }
 
 export async function duplicateProjectTemplate(formData: FormData): Promise<void> {
-  const actor = await requireAgencyPermission("manage_project_templates");
+  const actor = await requireAgencyPermission("edit_project_templates");
   const templateId = String(formData.get("templateId") ?? "");
   const original = await db.query.projectTemplates.findFirst({ where: eq(projectTemplates.id, templateId) });
   if (!original) return;

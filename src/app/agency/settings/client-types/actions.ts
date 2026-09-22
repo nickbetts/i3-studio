@@ -12,7 +12,7 @@ function slugifyKey(label: string) {
 }
 
 export async function createClientType(formData: FormData): Promise<void> {
-  const actor = await requireAgencyPermission("manage_client_types");
+  const actor = await requireAgencyPermission("edit_client_types");
   const label = String(formData.get("label") ?? "").trim();
   if (label.length < 2) return;
   const key = slugifyKey(label);
@@ -24,7 +24,7 @@ export async function createClientType(formData: FormData): Promise<void> {
 }
 
 export async function setClientTypeArchived(formData: FormData): Promise<void> {
-  const actor = await requireAgencyPermission("manage_client_types");
+  const actor = await requireAgencyPermission("edit_client_types");
   const id = String(formData.get("id") ?? "");
   const archived = formData.get("archived") === "true";
   if (!id) return;

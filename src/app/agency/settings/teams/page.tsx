@@ -18,7 +18,7 @@ import { addTeamMember, createTeam, removeTeamMember, setTeamArchived } from "./
 
 export default async function TeamsPage() {
   const actor = await requireAgencyUser();
-  const canManage = await hasPermission(actor, "manage_teams");
+  const canManage = await hasPermission(actor, "edit_teams");
 
   const [teamList, clients, staff] = await Promise.all([
     db.query.teams.findMany({ orderBy: asc(teams.name) }),

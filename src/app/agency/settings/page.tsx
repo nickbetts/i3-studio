@@ -23,9 +23,9 @@ const palette = ["#6366f1", "#06b6d4", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6
 export default async function AgencySettingsPage() {
   const actor = await requireAgencyUser();
   const canCreateUsers = await hasPermission(actor, "create_users");
-  const canEditUserAccess = await hasPermission(actor, "edit_user_access");
-  const canRemoveUsers = await hasPermission(actor, "remove_users");
-  const canManageClientUsers = await hasPermission(actor, "manage_client_users");
+  const canEditUserAccess = await hasPermission(actor, "edit_users");
+  const canRemoveUsers = await hasPermission(actor, "deactivate_users");
+  const canManageClientUsers = await hasPermission(actor, "edit_client_users");
   if (!canCreateUsers && !canEditUserAccess && !canRemoveUsers && !canManageClientUsers) redirect("/agency");
   const team = await db.query.users.findMany({
     where: (user, { inArray }) => inArray(user.role, ["admin", "account_manager", "content_writer"]),

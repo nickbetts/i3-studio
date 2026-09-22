@@ -31,17 +31,36 @@ const DEFAULT_CUSTOM_ROLES: { name: string; description: string; permissions: st
   { name: "Management", description: "Agency leadership.", permissions: ["manage_teams", "manage_clients", "manage_users", "manage_billing", "view_reports"] },
 ];
 
-// Maps each retired coarse permission key to the granular keys that replaced it.
+// Maps every retired permission key (both the original coarse keys, and the first round of
+// granular keys that got renamed to a clearer verb) directly to the current final key(s).
 const LEGACY_PERMISSION_EXPANSION: Record<string, string[]> = {
-  manage_content: ["manage_content_templates", "manage_content_items"],
-  manage_tasks: ["create_tasks", "manage_all_tasks", "moderate_task_comments"],
-  manage_tickets: ["reply_tickets", "manage_ticket_status", "assign_tickets"],
-  manage_clients: ["create_clients", "edit_clients", "manage_account_managers", "manage_client_watchers"],
+  // round 0 (coarse) -> current granular keys
+  manage_content: ["edit_content_templates", "edit_content"],
+  manage_tasks: ["create_tasks", "edit_tasks", "delete_task_comments"],
+  manage_tickets: ["reply_tickets", "edit_tickets", "assign_tickets"],
+  manage_clients: ["create_clients", "edit_clients", "assign_account_managers", "edit_client_watchers"],
   manage_designs: ["upload_designs", "upload_design_versions"],
-  manage_billing: ["manage_time_budgets", "manage_service_allocations"],
-  manage_settings: ["manage_client_types", "manage_project_templates", "manage_onboarding_flows"],
-  manage_users: ["create_users", "edit_user_access", "remove_users"],
-  manage_roles: ["manage_roles", "assign_roles"],
+  manage_billing: ["edit_time_budgets", "edit_service_allocations"],
+  manage_settings: ["edit_client_types", "edit_project_templates", "edit_onboarding_flows"],
+  manage_users: ["create_users", "edit_users", "deactivate_users"],
+  manage_roles: ["edit_roles", "assign_roles"],
+  // round 1 (first granular pass) -> current renamed keys
+  manage_all_tasks: ["edit_tasks"],
+  moderate_task_comments: ["delete_task_comments"],
+  manage_account_managers: ["assign_account_managers"],
+  manage_client_watchers: ["edit_client_watchers"],
+  manage_client_users: ["edit_client_users"],
+  manage_ticket_status: ["edit_tickets"],
+  manage_time_budgets: ["edit_time_budgets"],
+  manage_service_allocations: ["edit_service_allocations"],
+  manage_content_templates: ["edit_content_templates"],
+  manage_content_items: ["edit_content"],
+  manage_client_types: ["edit_client_types"],
+  manage_project_templates: ["edit_project_templates"],
+  manage_onboarding_flows: ["edit_onboarding_flows"],
+  manage_teams: ["edit_teams"],
+  edit_user_access: ["edit_users"],
+  remove_users: ["deactivate_users"],
 };
 
 function expandLegacyPermissions(keys: string[]): string[] {

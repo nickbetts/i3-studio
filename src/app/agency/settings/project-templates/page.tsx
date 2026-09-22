@@ -17,7 +17,7 @@ import { archiveProjectTemplate, createProjectTemplate, duplicateProjectTemplate
 import { ProjectTemplateEditor } from "./project-template-editor";
 
 export default async function ProjectTemplatesPage() {
-  await requireAgencyPermission("manage_project_templates");
+  await requireAgencyPermission("edit_project_templates");
   const [templates, types] = await Promise.all([
     db.query.projectTemplates.findMany({ where: eq(projectTemplates.archived, false), orderBy: asc(projectTemplates.name) }),
     db.query.clientTypes.findMany({ where: eq(clientTypes.archived, false), orderBy: asc(clientTypes.label) }),

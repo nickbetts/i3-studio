@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { db } from "@/db";
 import { projects, tasks } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
+import { hasPermission } from "@/lib/permissions";
 import { setClientServiceAllocations } from "./actions";
 import { formatLoggedTime } from "@/lib/time-format";
 import { getTimeReport } from "@/lib/time-report";
@@ -19,7 +20,7 @@ function dateInput(date: Date) {
 
 export default async function AgencyTimePage({ searchParams }: { searchParams: Promise<{ month?: string; clientId?: string }> }) {
   const user = await requireAgencyUser();
-  const canManage = user.role === "admin" || user.role === "account_manager";
+  const canManage = await hasPermission(user, "edit_service_allocations");
   const { month, clientId } = await searchParams;
   const { period, rows, entries, totalSeconds } = await getTimeReport(month);
   const [team, projectsList, tasksList] = await Promise.all([
