@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -23,6 +24,17 @@ import { getClientSentiment } from "@/lib/client-sentiment";
 import { ClientBudgetOverview } from "./client-budget-overview";
 import { SupportInbox, type Ticket } from "@/app/agency/support/support-inbox";
 
+const AVATAR_TONES = ["from-cyan-500 to-blue-600", "from-emerald-500 to-teal-700", "from-fuchsia-500 to-violet-700", "from-amber-400 to-orange-600", "from-rose-500 to-pink-700", "from-lime-500 to-emerald-700"];
+
+function avatarInitials(value: string) {
+  const parts = value.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || value.slice(0, 2).toUpperCase();
+}
+
+function avatarTone(id: string) {
+  return AVATAR_TONES[[...id].reduce((total, character) => total + character.charCodeAt(0), 0) % AVATAR_TONES.length];
+}
+
 export default async function AgencyClientDashboardPage({ params }: { params: Promise<{ clientId: string }> }) {
   const actor = await requireAgencyUser();
   const canManageTasks = await hasPermission(actor, "edit_tasks");
@@ -33,7 +45,7 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
   const sentimentRangeStart = new Date(sentimentRangeEnd.getTime() - 90 * 24 * 60 * 60 * 1000);
   const [submission, managers, allManagers, types, clientTasks, references, clientProjects, team, clientTimeEntries, timeReport, clientTicketList, watchers, sentiment] = await Promise.all([
     db.query.onboardingSubmissions.findFirst({ where: eq(onboardingSubmissions.clientAccountId, clientId) }),
-    db.select({ id: accountManagerAssignments.id, userId: users.id, name: users.name, email: users.email }).from(accountManagerAssignments).innerJoin(users, eq(accountManagerAssignments.userId, users.id)).where(eq(accountManagerAssignments.clientAccountId, clientId)),
+    db.select({ id: accountManagerAssignments.id, userId: users.id, name: users.name, email: users.email, image: users.image }).from(accountManagerAssignments).innerJoin(users, eq(accountManagerAssignments.userId, users.id)).where(eq(accountManagerAssignments.clientAccountId, clientId)),
     db.query.users.findMany({ where: eq(users.role, "account_manager") }),
     db.query.clientTypes.findMany({ where: eq(clientTypes.archived, false), orderBy: asc(clientTypes.label) }),
     db.query.tasks.findMany({ where: and(eq(tasks.clientAccountId, clientId), inArray(tasks.status, ["open", "in_progress", "blocked"])) }),
@@ -150,7 +162,13 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
               <p className="text-xs text-muted-foreground">Account managers</p>
               {managers.length === 0 ? <p className="text-sm">None assigned</p> : managers.map((manager) => (
                 <div key={manager.id} className="flex items-center justify-between gap-2">
-                  <p className="text-sm">{manager.name || manager.email}</p>
+                  <div className="flex items-center gap-2">
+                    <Avatar size="sm">
+                      {manager.image ? <AvatarImage src={manager.image} alt={manager.name || manager.email} /> : null}
+                      <AvatarFallback className={`bg-linear-to-br ${avatarTone(manager.userId)} text-[10px] font-semibold text-white`}>{avatarInitials(manager.name || manager.email)}</AvatarFallback>
+                    </Avatar>
+                    <p className="text-sm">{manager.name || manager.email}</p>
+                  </div>
                   <form action={removeAccountManager}>
                     <input type="hidden" name="assignmentId" value={manager.id} />
                     <input type="hidden" name="clientAccountId" value={client.id} />
