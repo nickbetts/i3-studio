@@ -5,7 +5,7 @@ import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { MentionInput } from "@/components/mention-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { addContentComment, deleteContentComment, resolveContentComment } from "@/app/agency/content/actions";
 import type { ContentField } from "@/lib/content";
@@ -31,7 +31,7 @@ function flash(el: Element | null) {
   window.setTimeout(() => el.classList.remove("ring-2", "ring-primary", "bg-primary/5"), 1500);
 }
 
-export function ContentComments({ itemId, fields, comments, canDelete = false }: { itemId: string; fields: ContentField[]; comments: CommentRow[]; canDelete?: boolean }) {
+export function ContentComments({ itemId, fields, comments, canDelete = false, mentionCandidates = [] }: { itemId: string; fields: ContentField[]; comments: CommentRow[]; canDelete?: boolean; mentionCandidates?: { id: string; name: string }[] }) {
   const [body, setBody] = useState("");
   const [fieldKey, setFieldKey] = useState("general");
   const [pending, start] = useTransition();
@@ -65,7 +65,7 @@ export function ContentComments({ itemId, fields, comments, canDelete = false }:
             {fields.map((field) => <SelectItem key={field.key} value={field.key}>On: {field.label}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Textarea value={body} onChange={(event) => setBody(event.target.value)} placeholder="Leave a comment or red-line note…" rows={3} />
+        <MentionInput value={body} onChange={setBody} candidates={mentionCandidates} placeholder="Leave a comment or red-line note… (type @ to mention someone)" rows={3} />
         <Button size="sm" onClick={add} disabled={pending || body.trim().length === 0}>Add comment</Button>
       </div>
 

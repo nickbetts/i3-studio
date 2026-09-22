@@ -1,12 +1,13 @@
 "use server";
 
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq, and, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { contentComments, contentEvents, contentItems, contentTemplates, contentVersions } from "@/db/schema";
+import { contentComments, contentEvents, contentItems, contentTemplates, contentVersions, users } from "@/db/schema";
 import { getCurrentUser, isAgencyRole, requireClientUser } from "@/lib/auth-helpers";
 import { hasPermission, requireAgencyPermission } from "@/lib/permissions";
 import { auditLog } from "@/lib/audit";
+import { notifyMentions } from "@/lib/notifications";
 import { DEFAULT_TEMPLATE_FIELDS, type ContentField, type ContentStatus } from "@/lib/content";
 import { safeContentData } from "@/lib/safe-html";
 import { canEditContent, canReadContent, canReviewContent } from "@/lib/content-policy";
@@ -156,8 +157,21 @@ export async function addContentComment(itemId: string, input: AddCommentInput):
   if (!item) return;
   if (!isAgencyRole(actor.role) && item.clientAccountId !== actor.clientAccountId) return;
   if (input.body.trim().length === 0) return;
-  await db.insert(contentComments).values({ contentItemId: itemId, fieldKey: input.fieldKey || null, quote: input.quote?.trim() || null, body: input.body.trim(), authorUserId: actor.id, parentId: input.parentId || null });
+  const trimmed = input.body.trim();
+  await db.insert(contentComments).values({ contentItemId: itemId, fieldKey: input.fieldKey || null, quote: input.quote?.trim() || null, body: trimmed, authorUserId: actor.id, parentId: input.parentId || null });
   await auditLog({ actorUserId: actor.id, action: "content.comment", entityType: "content_item", entityId: itemId, clientAccountId: item.clientAccountId, metadata: { fieldKey: input.fieldKey, hasQuote: Boolean(input.quote) } });
+  const [staff, clientUsers] = await Promise.all([
+    db.query.users.findMany({ where: (row, { inArray: inA }) => inA(row.role, ["admin", "account_manager", "content_writer"]), columns: { id: true, name: true, email: true, role: true } }),
+    db.query.users.findMany({ where: and(eq(users.clientAccountId, item.clientAccountId), eq(users.role, "client")), columns: { id: true, name: true, email: true, role: true } }),
+  ]);
+  await notifyMentions({
+    text: trimmed,
+    candidates: [...staff, ...clientUsers].map((person) => ({ id: person.id, name: person.name || person.email, role: person.role })),
+    actorUserId: actor.id,
+    actorName: actor.name || actor.email,
+    excerpt: `"${item.title}": ${trimmed}`,
+    linkUrlForRole: (role) => (role === "client" ? "/portal/content" : `/agency/content/${itemId}`),
+  });
   revalidateItem(itemId);
 }
 

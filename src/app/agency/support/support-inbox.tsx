@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
+import { MentionInput } from "@/components/mention-input";
 import { EmptyState } from "@/components/empty-state";
 import { PriorityBadge, StatusBadge } from "@/components/status-badge";
 import { prepareUpload } from "@/lib/upload-client";
@@ -31,7 +31,7 @@ export type Ticket = {
 
 const STATUS_FILTERS = ["active", "all", "open", "pending", "resolved", "closed"] as const;
 
-export function SupportInbox({ tickets, teams = [] }: { tickets: Ticket[]; teams?: { id: string; name: string }[] }) {
+export function SupportInbox({ tickets, teams = [], staff = [] }: { tickets: Ticket[]; teams?: { id: string; name: string }[]; staff?: { id: string; name: string | null; email: string }[] }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("active");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -163,7 +163,7 @@ export function SupportInbox({ tickets, teams = [] }: { tickets: Ticket[]; teams
               ))}
             </div>
             <div className="space-y-2 border-t bg-muted/20 p-4">
-              <Textarea aria-label="Reply to client" value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Reply to the client…" rows={3} />
+              <MentionInput aria-label="Reply to client" value={reply} onChange={setReply} candidates={staff.map((member) => ({ id: member.id, name: member.name || member.email }))} placeholder="Reply to the client… (type @ to mention a teammate)" rows={3} />
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <Input aria-label="Reply attachment" key={replyFile ? "selected" : "empty"} type="file" className="min-w-0 max-w-56 text-xs" onChange={(event) => setReplyFile(event.target.files?.[0] ?? null)} />
                 <Button size="sm" disabled={pending || reply.trim().length === 0} onClick={send}>Reply and email client</Button>

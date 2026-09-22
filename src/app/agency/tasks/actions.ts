@@ -8,6 +8,7 @@ import { savedTaskViews, taskActivities, taskAssignments, taskComments, taskDepe
 import { requireAgencyUser } from "@/lib/auth-helpers";
 import { hasPermission, requireAgencyPermission } from "@/lib/permissions";
 import { auditLog } from "@/lib/audit";
+import { notifyMentions } from "@/lib/notifications";
 import { consumeUpload, verifiedUpload } from "@/lib/upload-server";
 
 const taskSchema = z.object({
@@ -172,6 +173,15 @@ export async function addTaskComment(taskId: string, body: string, attachmentFor
   }
   await db.insert(taskComments).values({ taskId, authorUserId: actor.id, body: trimmed, ...attachment });
   await auditLog({ actorUserId: actor.id, action: "task.comment_added", entityType: "task", entityId: taskId, clientAccountId: task.clientAccountId });
+  const staff = await db.query.users.findMany({ where: (row, { inArray: inA }) => inA(row.role, ["admin", "account_manager", "content_writer"]), columns: { id: true, name: true, email: true, role: true } });
+  await notifyMentions({
+    text: trimmed,
+    candidates: staff.map((member) => ({ id: member.id, name: member.name || member.email, role: member.role })),
+    actorUserId: actor.id,
+    actorName: actor.name || actor.email,
+    excerpt: `"${task.title}": ${trimmed}`,
+    linkUrlForRole: () => "/agency/tasks",
+  });
   revalidatePath("/agency/tasks");
 }
 

@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { activeTimers, contentItems, designAssets, documents, taskAssignments, tasks, tickets, users } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
 import { isPreviewing } from "@/lib/auth-helpers";
+import { getUnreadNotificationCount } from "@/lib/notifications";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { TimeTracker, type ActiveTimer } from "./time/time-tracker";
 
@@ -17,7 +18,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
   const previewUsers = user.role === "admin" && !previewing ? await db.query.users.findMany({ where: (row, { inArray }) => inArray(row.role, ["admin", "account_manager", "content_writer", "client"]) }) : [];
   const previewTargets = previewUsers.map((target) => ({ id: target.id, label: `${target.name || target.email} (${target.role})`, destination: target.role === "client" ? "/portal" : "/agency" }));
 
-  const [[pendingFiles], [pendingDesigns], [openTickets], [pendingContent], [myOpenTasks], timerClients, timerProjects, timerTasks, activeTimer] = await Promise.all([
+  const [[pendingFiles], [pendingDesigns], [openTickets], [pendingContent], [myOpenTasks], timerClients, timerProjects, timerTasks, activeTimer, unreadNotifications] = await Promise.all([
     db.select({ value: count() }).from(documents).where(eq(documents.status, "pending")),
     db.select({ value: count() }).from(designAssets).where(eq(designAssets.status, "pending")),
     db.select({ value: count() }).from(tickets).where(inArray(tickets.status, ["open", "pending"])),
@@ -29,6 +30,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
     db.query.projects.findMany({ columns: { id: true, clientAccountId: true, name: true }, orderBy: (project, { asc }) => [asc(project.name)] }),
     db.query.tasks.findMany({ columns: { id: true, clientAccountId: true, projectId: true, title: true }, orderBy: (task, { asc }) => [asc(task.title)] }),
     db.query.activeTimers.findFirst({ where: eq(activeTimers.userId, user.id) }),
+    getUnreadNotificationCount(user.id),
   ]);
 
   const activeTimerView: ActiveTimer | null = activeTimer ? {
@@ -52,6 +54,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
     { href: "/agency/settings", label: "Settings", icon: "settings" },
   ];
   const visibleItems = allowedTabs ? navItems.filter((item) => allowedTabs.includes(item.icon)) : navItems;
+  visibleItems.splice(1, 0, { href: "/agency/notifications", label: "Notifications", icon: "notifications", count: unreadNotifications });
   visibleItems.push({ href: "/agency/calendar", label: "Calendar", icon: "calendar" });
 
   return (

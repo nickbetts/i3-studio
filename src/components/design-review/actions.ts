@@ -1,12 +1,13 @@
 "use server";
 
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { annotationComments, annotations, designAssets, designVersions } from "@/db/schema";
+import { annotationComments, annotations, designAssets, designVersions, users } from "@/db/schema";
 import { getCurrentUser, isAgencyRole } from "@/lib/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
 import { auditLog } from "@/lib/audit";
+import { notifyMentions } from "@/lib/notifications";
 import { verifiedUpload } from "@/lib/upload-server";
 
 // Both agency staff and the owning client can pin, reply and resolve — access is
@@ -17,6 +18,21 @@ async function assertAccess(clientAccountId: string) {
   if (isAgencyRole(user.role)) return user;
   if (user.role === "client" && user.clientAccountId === clientAccountId) return user;
   return null;
+}
+
+async function notifyDesignMentions(text: string, clientAccountId: string, actorId: string, actorName: string) {
+  const [staff, clientUsers] = await Promise.all([
+    db.query.users.findMany({ where: inArray(users.role, ["admin", "account_manager", "content_writer"]), columns: { id: true, name: true, email: true, role: true } }),
+    db.query.users.findMany({ where: and(eq(users.clientAccountId, clientAccountId), eq(users.role, "client")), columns: { id: true, name: true, email: true, role: true } }),
+  ]);
+  await notifyMentions({
+    text,
+    candidates: [...staff, ...clientUsers].map((person) => ({ id: person.id, name: person.name || person.email, role: person.role })),
+    actorUserId: actorId,
+    actorName,
+    excerpt: text,
+    linkUrlForRole: (role) => (role === "client" ? "/portal/approvals" : "/agency/designs"),
+  });
 }
 
 function revalidateBoth() {
@@ -38,6 +54,7 @@ export async function createAnnotation(designAssetId: string, x: number, y: numb
   const [annotation] = await db.insert(annotations).values({ designAssetId, version, x, y, createdByUserId: user.id }).returning({ id: annotations.id });
   await db.insert(annotationComments).values({ annotationId: annotation.id, authorUserId: user.id, body: body.trim() });
   await auditLog({ actorUserId: user.id, action: "design.annotation_created", entityType: "annotation", entityId: annotation.id, clientAccountId: design.clientAccountId });
+  await notifyDesignMentions(body.trim(), design.clientAccountId, user.id, user.name || user.email);
   revalidateBoth();
 }
 
@@ -49,6 +66,7 @@ export async function addAnnotationComment(annotationId: string, body: string): 
   await requireLatest(annotation.designAssetId, annotation.version);
   await db.insert(annotationComments).values({ annotationId, authorUserId: user.id, body: body.trim() });
   await auditLog({ actorUserId: user.id, action: "design.comment_created", entityType: "annotation", entityId: annotationId, clientAccountId: annotation.designAsset.clientAccountId });
+  await notifyDesignMentions(body.trim(), annotation.designAsset.clientAccountId, user.id, user.name || user.email);
   revalidateBoth();
 }
 

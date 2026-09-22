@@ -38,7 +38,7 @@ export default async function AgencySupportPage({ searchParams }: { searchParams
         description="Search, filter and reply to every conversation from one place."
         actions={<TaskFilterSelect paramKey="assignee" placeholder="Mine & unclaimed" options={[{ value: "mine", label: "Mine & unclaimed" }, { value: "all", label: "All tickets" }]} />}
       />
-      <SupportInbox tickets={tickets} teams={teamsList} />
+      <SupportInbox tickets={tickets} teams={teamsList} staff={team} />
     </div>
   );
 }

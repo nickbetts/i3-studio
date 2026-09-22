@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { ticketMessages, tickets, users } from "@/db/schema";
 import { requireAgencyPermission } from "@/lib/permissions";
 import { auditLog } from "@/lib/audit";
+import { notifyMentions } from "@/lib/notifications";
 import { queueMail } from "@/lib/mailgun";
 import { consumeUpload, verifiedUpload } from "@/lib/upload-server";
 
@@ -27,6 +28,15 @@ export async function replyToTicket(ticketId: string, body: string, attachmentFo
     await queueMail({ to: client.email, subject: `Re: ${ticket.subject}`, text: body.trim(), replyTo: `ticket-${ticket.id}@${domain}` });
   }
   await auditLog({ actorUserId: user.id, action: "ticket.replied", entityType: "ticket", entityId: ticketId, clientAccountId: ticket.clientAccountId });
+  const staff = await db.query.users.findMany({ where: (row, { inArray }) => inArray(row.role, ["admin", "account_manager", "content_writer"]), columns: { id: true, name: true, email: true, role: true } });
+  await notifyMentions({
+    text: body.trim(),
+    candidates: staff.map((member) => ({ id: member.id, name: member.name || member.email, role: member.role })),
+    actorUserId: user.id,
+    actorName: user.name || user.email,
+    excerpt: `"${ticket.subject}": ${body.trim()}`,
+    linkUrlForRole: () => "/agency/support",
+  });
   revalidatePath("/agency/support");
   revalidatePath(`/agency/clients/${ticket.clientAccountId}`);
 }

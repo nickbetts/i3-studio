@@ -277,7 +277,7 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
       <div className="client-overview-column order-1 min-w-0 space-y-6 min-[1440px]:col-start-1 min-[1440px]:row-start-1" data-testid="client-work-column">
       <Card data-testid="client-support-section">
         <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle className="text-base">Support</CardTitle><CardDescription>{clientTickets.length} ticket{clientTickets.length === 1 ? "" : "s"} for this client.</CardDescription></div><Button variant="outline" size="sm" asChild><Link href={`/agency/support?clientId=${client.id}`}>Open support inbox</Link></Button></div></CardHeader>
-        <CardContent><SupportInbox tickets={clientTickets} /></CardContent>
+        <CardContent><SupportInbox tickets={clientTickets} staff={team} /></CardContent>
       </Card>
       <Card data-testid="client-task-section">
         <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle className="text-base">Tasks</CardTitle><CardDescription>{taskRows.length} open task{taskRows.length === 1 ? "" : "s"} for this client.</CardDescription></div><Button variant="outline" size="sm" asChild><Link href={`/agency/tasks?assignee=all&clientId=${client.id}`}>Open task workspace</Link></Button></div></CardHeader>

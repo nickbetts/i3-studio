@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { clientAccounts, contentItems, designAssets, documents, tickets } from "@/db/schema";
 import { requireClientUser } from "@/lib/auth-helpers";
 import { isPreviewing } from "@/lib/auth-helpers";
+import { getUnreadNotificationCount } from "@/lib/notifications";
 
 export default async function PortalAppLayout({ children }: { children: ReactNode }) {
   const user = await requireClientUser();
@@ -19,11 +20,12 @@ export default async function PortalAppLayout({ children }: { children: ReactNod
   // Force onboarding until the client has completed the wizard.
   if (!account?.onboardingCompletedAt) redirect("/portal/onboarding");
 
-  const [[pendingFiles], [pendingDesigns], [pendingContent], [openTickets]] = await Promise.all([
+  const [[pendingFiles], [pendingDesigns], [pendingContent], [openTickets], unreadNotifications] = await Promise.all([
     db.select({ value: count() }).from(documents).where(and(eq(documents.clientAccountId, user.clientAccountId), eq(documents.status, "pending"))),
     db.select({ value: count() }).from(designAssets).where(and(eq(designAssets.clientAccountId, user.clientAccountId), eq(designAssets.status, "pending"))),
     db.select({ value: count() }).from(contentItems).where(and(eq(contentItems.clientAccountId, user.clientAccountId), eq(contentItems.status, "pending_client"))),
     db.select({ value: count() }).from(tickets).where(and(eq(tickets.clientAccountId, user.clientAccountId), inArray(tickets.status, ["open", "pending"]))),
+    getUnreadNotificationCount(user.id),
   ]);
   const approvalsCount = (pendingFiles?.value ?? 0) + (pendingDesigns?.value ?? 0) + (pendingContent?.value ?? 0);
 
@@ -35,6 +37,7 @@ export default async function PortalAppLayout({ children }: { children: ReactNod
   ];
   const visibleTabs = Array.isArray(account?.visibleTabs) ? account.visibleTabs : navItems.map((item) => item.icon);
   const visibleItems = navItems.filter((item) => visibleTabs.includes(item.icon));
+  visibleItems.splice(1, 0, { href: "/portal/notifications", label: "Notifications", icon: "notifications", count: unreadNotifications });
   visibleItems.push({ href: "/portal/files", label: "Files", icon: "reference" });
   visibleItems.push({ href: "/portal/time", label: "Time", icon: "reports" });
 

@@ -118,7 +118,7 @@ export function TaskList({ rows, team, teams = [], currentUserId, canManage }: {
                     </TableCell>
                   ) : null}
                   <TableCell className="max-w-72 whitespace-normal">
-                    <TaskDetailDialog taskId={task.id} title={task.title} currentUserId={currentUserId} canEdit={canEditTask} />
+                    <TaskDetailDialog taskId={task.id} title={task.title} currentUserId={currentUserId} canEdit={canEditTask} team={team} />
                     <p className="mt-1 truncate text-xs text-muted-foreground">{task.meta}</p>
                   </TableCell>
                   <TableCell><TaskPriorityPicker taskId={task.id} value={task.priority} editable={canEditTask} /></TableCell>

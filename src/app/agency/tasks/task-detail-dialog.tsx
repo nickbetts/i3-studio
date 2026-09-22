@@ -9,13 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { MentionInput } from "@/components/mention-input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { prepareUpload } from "@/lib/upload-client";
 import { formatLoggedTime } from "@/lib/time-format";
 import { serviceAllocation } from "@/lib/service-allocations";
 import { addTaskComment, addTaskDependency, createSubtask, deleteTaskComment, getTaskDetail, updateChecklist, updateTaskDetails, type TaskDetail } from "./actions";
 
-export function TaskDetailDialog({ taskId, title, currentUserId, canEdit }: { taskId: string; title: string; currentUserId: string; canEdit: boolean }) {
+export function TaskDetailDialog({ taskId, title, currentUserId, canEdit, team = [] }: { taskId: string; title: string; currentUserId: string; canEdit: boolean; team?: { id: string; name: string | null; email: string }[] }) {
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<TaskDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -173,7 +174,7 @@ export function TaskDetailDialog({ taskId, title, currentUserId, canEdit }: { ta
                   </div>
                 )}
                 <div className="flex gap-2">
-                  <Textarea aria-label="Task comment" disabled={!canEdit} value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Add a comment…" rows={2} />
+                  <MentionInput aria-label="Task comment" disabled={!canEdit} candidates={team.map((member) => ({ id: member.id, name: member.name || member.email }))} value={comment} onChange={setComment} placeholder="Add a comment… (type @ to mention someone)" rows={2} />
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <Input aria-label="Comment attachment" disabled={!canEdit || pending} type="file" key={commentFile ? "selected" : "empty"} className="min-w-0 max-w-56 text-xs" onChange={(event) => setCommentFile(event.target.files?.[0] ?? null)} />

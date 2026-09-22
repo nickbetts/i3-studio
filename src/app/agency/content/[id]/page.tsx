@@ -1,4 +1,4 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, and } from "drizzle-orm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -18,12 +18,14 @@ export default async function AgencyContentItemPage({ params }: { params: Promis
   const item = await db.query.contentItems.findFirst({ where: eq(contentItems.id, id) });
   if (!item) return <Card><CardContent className="pt-6">Content not found.</CardContent></Card>;
 
-  const [template, client, events, comments, versions] = await Promise.all([
+  const [template, client, events, comments, versions, staff, clientUsers] = await Promise.all([
     item.templateId ? db.query.contentTemplates.findFirst({ where: eq(contentTemplates.id, item.templateId) }) : null,
     db.query.clientAccounts.findFirst({ where: eq(clientAccounts.id, item.clientAccountId) }),
     db.select({ id: contentEvents.id, type: contentEvents.type, note: contentEvents.note, createdAt: contentEvents.createdAt, actorName: users.name, actorRole: users.role }).from(contentEvents).leftJoin(users, eq(contentEvents.actorUserId, users.id)).where(eq(contentEvents.contentItemId, id)).orderBy(asc(contentEvents.createdAt)),
     db.select({ id: contentComments.id, fieldKey: contentComments.fieldKey, quote: contentComments.quote, body: contentComments.body, resolved: contentComments.resolved, createdAt: contentComments.createdAt, authorName: users.name, authorRole: users.role }).from(contentComments).leftJoin(users, eq(contentComments.authorUserId, users.id)).where(eq(contentComments.contentItemId, id)).orderBy(desc(contentComments.createdAt)),
     db.select({ version: contentVersions.version, data: contentVersions.data, note: contentVersions.note, createdAt: contentVersions.createdAt, authorName: users.name }).from(contentVersions).leftJoin(users, eq(contentVersions.authorUserId, users.id)).where(eq(contentVersions.contentItemId, id)).orderBy(desc(contentVersions.version)),
+    db.query.users.findMany({ where: (row, { inArray }) => inArray(row.role, ["admin", "account_manager", "content_writer"]), columns: { id: true, name: true, email: true } }),
+    db.query.users.findMany({ where: and(eq(users.clientAccountId, item.clientAccountId), eq(users.role, "client")), columns: { id: true, name: true, email: true } }),
   ]);
 
   const fields = (template?.fields as ContentField[]) ?? [];
@@ -72,7 +74,7 @@ export default async function AgencyContentItemPage({ params }: { params: Promis
           </Card>
           <Card>
             <CardHeader><CardTitle className="text-base">Comments &amp; red-lines</CardTitle></CardHeader>
-            <CardContent><ContentComments itemId={item.id} fields={fields} comments={comments} canDelete={actor.role === "admin"} /></CardContent>
+            <CardContent><ContentComments itemId={item.id} fields={fields} comments={comments} canDelete={actor.role === "admin"} mentionCandidates={[...staff, ...clientUsers].map((person) => ({ id: person.id, name: person.name || person.email }))} /></CardContent>
           </Card>
         </div>
       </div>
