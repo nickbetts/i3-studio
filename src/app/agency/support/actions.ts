@@ -28,6 +28,7 @@ export async function replyToTicket(ticketId: string, body: string, attachmentFo
   }
   await auditLog({ actorUserId: user.id, action: "ticket.replied", entityType: "ticket", entityId: ticketId, clientAccountId: ticket.clientAccountId });
   revalidatePath("/agency/support");
+  revalidatePath(`/agency/clients/${ticket.clientAccountId}`);
 }
 
 export async function updateTicketStatus(ticketId: string, status: "open" | "pending" | "resolved" | "closed"): Promise<void> {
@@ -37,6 +38,7 @@ export async function updateTicketStatus(ticketId: string, status: "open" | "pen
   await db.update(tickets).set({ status, updatedAt: new Date() }).where(eq(tickets.id, ticketId));
   await auditLog({ actorUserId: user.id, action: "ticket.status_updated", entityType: "ticket", entityId: ticketId, clientAccountId: ticket.clientAccountId, metadata: { status } });
   revalidatePath("/agency/support");
+  revalidatePath(`/agency/clients/${ticket.clientAccountId}`);
 }
 
 export async function updateTicketPriority(ticketId: string, priority: "low" | "medium" | "high" | "urgent"): Promise<void> {
@@ -46,4 +48,5 @@ export async function updateTicketPriority(ticketId: string, priority: "low" | "
   await db.update(tickets).set({ priority, updatedAt: new Date() }).where(eq(tickets.id, ticketId));
   await auditLog({ actorUserId: user.id, action: "ticket.priority_updated", entityType: "ticket", entityId: ticketId, clientAccountId: ticket.clientAccountId, metadata: { priority } });
   revalidatePath("/agency/support");
+  revalidatePath(`/agency/clients/${ticket.clientAccountId}`);
 }

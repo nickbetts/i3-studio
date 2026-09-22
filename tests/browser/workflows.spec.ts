@@ -301,6 +301,8 @@ test("full interface audit across agency, portal and public routes", async ({ pa
   await db.insert(timeEntries).values([clientId, otherClientId].map((clientAccountId) => ({ userId: actors.admin.id, clientAccountId, serviceType: "account_manager_hours", taskId: clientAccountId === clientId ? auditTaskId : null, startedAt: new Date(period.start.getTime() + 86_400_000), stoppedAt: new Date(period.start.getTime() + 86_400_000 + 21653000), durationSeconds: 21653 })));
   await db.insert(tickets).values({ id: ticketId, clientAccountId: otherClientId, subject: "Delivery review and campaign launch questions" });
   await db.insert(ticketMessages).values({ id: attachmentMessageId, ticketId, body: "Please review the launch notes.", attachmentUrl: "https://fixture.private.blob.vercel-storage.com/launch.pdf", attachmentName: "launch.pdf" });
+  const clientTicketId = randomUUID();
+  await db.insert(tickets).values({ id: clientTicketId, clientAccountId: clientId, subject: "Client-scoped support question" });
   const groups = [
     { role: "admin", paths: ["/agency", "/agency/clients", `/agency/clients/${clientId}`, "/agency/projects", `/agency/projects/${projectId}`, "/agency/tasks", "/agency/content", `/agency/content/${itemId}`, "/agency/content/templates", "/agency/files", "/agency/designs", "/agency/support", "/agency/time", "/agency/calendar", "/agency/reports", "/agency/settings", "/agency/settings/client-types", "/agency/settings/project-templates", "/agency/settings/onboarding-flows", "/agency/preview"] },
     { role: "client", paths: ["/portal", "/portal/projects", `/portal/projects/${projectId}`, "/portal/approvals", `/portal/content/${itemId}`, "/portal/files", "/portal/support", "/portal/time", "/portal/onboarding"] },
@@ -321,6 +323,11 @@ test("full interface audit across agency, portal and public routes", async ({ pa
           await expect(clientTask).toBeVisible();
           await expect(clientTask.getByTestId("task-priority-picker")).toBeVisible();
           await expect(page.getByTestId("stacked-service-progress")).toBeVisible();
+          const supportSection = page.getByTestId("client-support-section");
+          await expect(supportSection).toBeVisible();
+          await expect(supportSection.getByText("Client-scoped support question", { exact: true })).toBeVisible();
+          await expect(supportSection.getByText("Delivery review and campaign launch questions", { exact: true })).toHaveCount(0);
+          expect(await supportSection.evaluate((element) => element.getBoundingClientRect().top)).toBeLessThan(await clientTask.evaluate((element) => element.getBoundingClientRect().top));
         }
         const name = path.replaceAll("/", "-").replace(clientId, "client").replace(projectId, "project").replace(itemId, "content");
         await page.screenshot({ path: `test-results/audit-${process.env.UI_AUDIT}/${width}${name}.png`, fullPage: true });

@@ -9,7 +9,7 @@ import { ConfirmButton } from "@/components/confirm-button";
 import { CreatePanel } from "@/components/create-panel";
 import { UploadForm } from "@/components/upload-form";
 import { db } from "@/db";
-import { accountManagerAssignments, clientAccounts, clientTypes, onboardingSubmissions, projects, referenceFiles, taskAssignments, tasks, timeEntries, users } from "@/db/schema";
+import { accountManagerAssignments, clientAccounts, clientTypes, onboardingSubmissions, projects, referenceFiles, taskAssignments, tasks, tickets, timeEntries, users } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
 import { uploadDocument } from "@/app/agency/files/actions";
 import { uploadReference } from "@/app/portal/(app)/files/actions";
@@ -18,13 +18,14 @@ import { TaskList, type TaskRow } from "@/app/agency/tasks/task-list";
 import { taskDueLabel } from "@/lib/task-display";
 import { getTimeReport } from "@/lib/time-report";
 import { ClientBudgetOverview } from "./client-budget-overview";
+import { SupportInbox, type Ticket } from "@/app/agency/support/support-inbox";
 
 export default async function AgencyClientDashboardPage({ params }: { params: Promise<{ clientId: string }> }) {
   const actor = await requireAgencyUser();
   const { clientId } = await params;
   const client = await db.query.clientAccounts.findFirst({ where: eq(clientAccounts.id, clientId) });
   if (!client) return <Card><CardContent className="pt-6">Client not found.</CardContent></Card>;
-  const [submission, managers, allManagers, types, clientTasks, references, clientProjects, team, clientTimeEntries, timeReport] = await Promise.all([
+  const [submission, managers, allManagers, types, clientTasks, references, clientProjects, team, clientTimeEntries, timeReport, clientTicketList] = await Promise.all([
     db.query.onboardingSubmissions.findFirst({ where: eq(onboardingSubmissions.clientAccountId, clientId) }),
     db.select({ id: accountManagerAssignments.id, userId: users.id, name: users.name, email: users.email }).from(accountManagerAssignments).innerJoin(users, eq(accountManagerAssignments.userId, users.id)).where(eq(accountManagerAssignments.clientAccountId, clientId)),
     db.query.users.findMany({ where: eq(users.role, "account_manager") }),
@@ -35,6 +36,7 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
     db.query.users.findMany({ where: inArray(users.role, ["admin", "account_manager", "content_writer"]) }),
     db.query.timeEntries.findMany({ where: eq(timeEntries.clientAccountId, clientId), columns: { taskId: true, durationSeconds: true } }),
     getTimeReport(undefined, false, clientId),
+    db.query.tickets.findMany({ where: eq(tickets.clientAccountId, clientId), orderBy: desc(tickets.updatedAt), with: { messages: { orderBy: (message, { asc }) => [asc(message.createdAt)] } } }),
   ]);
   const onboardingData = submission?.data && typeof submission.data === "object" ? Object.entries(submission.data as Record<string, unknown>) : [];
   const assignedManagerIds = new Set(managers.map((manager) => manager.userId));
@@ -49,6 +51,7 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
     return { id: task.id, title: task.title, clientAccountId: client.id, projectId: task.projectId, clientName: client.name, projectName: task.projectId ? projectName.get(task.projectId) ?? null : null, meta: task.projectId ? projectName.get(task.projectId) ?? "Unknown project" : "Client task", priority: task.priority, dueDate: task.dueDate?.toISOString() ?? null, status: task.status, assignedToUserIds, assigneeNames: assignedToUserIds.map((id) => team.find((member) => member.id === id)?.name || team.find((member) => member.id === id)?.email || "Unknown"), timeSeconds: timeByTask.get(task.id) ?? 0, dueLabel: taskDueLabel(task.dueDate, task.status) };
   });
   const budgetRow = timeReport.rows[0];
+  const clientTickets: Ticket[] = clientTicketList.map((ticket) => ({ id: ticket.id, subject: ticket.subject, status: ticket.status, priority: ticket.priority, clientName: client.name, clientAccountId: client.id, assigneeName: team.find((member) => member.id === ticket.assignedToUserId)?.name ?? null, updatedAt: ticket.updatedAt, messages: ticket.messages }));
   const resources = (
     <>
       <Card>
@@ -166,7 +169,7 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
             {onboardingData.length === 0 ? <p className="text-sm text-muted-foreground">No onboarding answers yet.</p> : onboardingData.map(([key, value]) => (
               <div key={key} className="border-b pb-2 last:border-0">
                 <dt className="text-xs font-medium capitalize text-muted-foreground">{key.replace(/([A-Z])/g, " $1")}</dt>
-                <dd className="mt-1 whitespace-pre-wrap break-words text-sm">{typeof value === "boolean" ? (value ? "Yes" : "No") : String(value ?? "")}</dd>
+                <dd className="mt-1 whitespace-pre-wrap wrap-break-word text-sm">{typeof value === "boolean" ? (value ? "Yes" : "No") : String(value ?? "")}</dd>
               </div>
             ))}
           </dl>
@@ -174,6 +177,10 @@ export default async function AgencyClientDashboardPage({ params }: { params: Pr
         </aside>
 
       <div className="client-overview-column order-1 min-w-0 space-y-6 min-[1440px]:col-start-1 min-[1440px]:row-start-1" data-testid="client-work-column">
+      <Card data-testid="client-support-section">
+        <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle className="text-base">Support</CardTitle><CardDescription>{clientTickets.length} ticket{clientTickets.length === 1 ? "" : "s"} for this client.</CardDescription></div><Button variant="outline" size="sm" asChild><Link href={`/agency/support?clientId=${client.id}`}>Open support inbox</Link></Button></div></CardHeader>
+        <CardContent><SupportInbox tickets={clientTickets} /></CardContent>
+      </Card>
       <Card data-testid="client-task-section">
         <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle className="text-base">Tasks</CardTitle><CardDescription>{taskRows.length} open task{taskRows.length === 1 ? "" : "s"} for this client.</CardDescription></div><Button variant="outline" size="sm" asChild><Link href={`/agency/tasks?assignee=all&clientId=${client.id}`}>Open task workspace</Link></Button></div></CardHeader>
         <CardContent>{taskRows.length ? <TaskList compact rows={taskRows} team={team} currentUserId={actor.id} canManage={actor.role === "admin" || actor.role === "account_manager"} /> : <p className="text-sm text-muted-foreground">No open tasks for this client.</p>}</CardContent>

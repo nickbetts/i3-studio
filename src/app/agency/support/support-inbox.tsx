@@ -15,8 +15,8 @@ import { PriorityBadge, StatusBadge } from "@/components/status-badge";
 import { prepareUpload } from "@/lib/upload-client";
 import { replyToTicket, updateTicketPriority, updateTicketStatus } from "./actions";
 
-type Message = { id: string; body: string; direction: string; channel: string; authorEmail: string | null; createdAt: string | Date; attachmentUrl: string | null; attachmentName: string | null };
-type Ticket = {
+export type Message = { id: string; body: string; direction: string; channel: string; authorEmail: string | null; createdAt: string | Date; attachmentUrl: string | null; attachmentName: string | null };
+export type Ticket = {
   id: string;
   subject: string;
   status: "open" | "pending" | "resolved" | "closed";
