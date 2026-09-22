@@ -20,9 +20,9 @@ import { requireAgencyUser } from "@/lib/auth-helpers";
 import { CONTENT_STATUS_LABELS, type ContentStatus } from "@/lib/content";
 import { createContentItem } from "./actions";
 
-export default async function AgencyContentPage({ searchParams }: { searchParams: Promise<{ q?: string; clientId?: string; status?: string; assignedTo?: string }> }) {
-  await requireAgencyUser();
-  const { q, clientId, status, assignedTo } = await searchParams;
+export default async function AgencyContentPage({ searchParams }: { searchParams: Promise<{ q?: string; clientId?: string; status?: string; assignee?: string }> }) {
+  const actor = await requireAgencyUser();
+  const { q, clientId, status, assignee = "me" } = await searchParams;
   const [clients, templates, team, items] = await Promise.all([
     db.query.clientAccounts.findMany({ orderBy: desc(clientAccounts.name) }),
     db.query.contentTemplates.findMany({ where: eq(contentTemplates.archived, false), orderBy: desc(contentTemplates.createdAt) }),
@@ -36,7 +36,7 @@ export default async function AgencyContentPage({ searchParams }: { searchParams
     (item) =>
       (!clientId || item.clientAccountId === clientId) &&
       (!status || item.status === status) &&
-      (!assignedTo || (assignedTo === "unassigned" ? !item.assignedToUserId : item.assignedToUserId === assignedTo)) &&
+      (assignee === "all" || (assignee === "unassigned" ? !item.assignedToUserId : assignee === "me" ? item.assignedToUserId === actor.id : item.assignedToUserId === assignee)) &&
       (!query || item.title.toLowerCase().includes(query) || clientName(item.clientAccountId).toLowerCase().includes(query)),
   );
 
@@ -94,15 +94,15 @@ export default async function AgencyContentPage({ searchParams }: { searchParams
             <CardTitle className="text-base">All content</CardTitle>
             <div className="flex flex-wrap items-center gap-2">
               <SearchInput placeholder="Search content…" />
+              <TaskFilterSelect paramKey="assignee" placeholder="Assigned to me" options={[{ value: "me", label: "Assigned to me" }, { value: "all", label: "Everyone" }, { value: "unassigned", label: "Unassigned" }, ...team.filter((member) => member.id !== actor.id).map((member) => ({ value: member.id, label: member.name || member.email }))]} />
               <TaskFilterSelect paramKey="clientId" placeholder="All clients" options={[{ value: "", label: "All clients" }, ...clients.map((client) => ({ value: client.id, label: client.name }))]} />
               <TaskFilterSelect paramKey="status" placeholder="All statuses" options={[{ value: "", label: "All statuses" }, ...Object.entries(CONTENT_STATUS_LABELS).map(([value, label]) => ({ value, label }))]} />
-              <TaskFilterSelect paramKey="assignedTo" placeholder="Anyone" options={[{ value: "", label: "Anyone" }, { value: "unassigned", label: "Unassigned" }, ...team.map((member) => ({ value: member.id, label: member.name || member.email }))]} />
             </div>
           </div>
         </CardHeader>
         <CardContent>
           {filteredItems.length === 0 ? (
-            <EmptyState icon={PenLine} title="No content found" description={q || clientId || status || assignedTo ? "Try adjusting your search or filters." : "Create a draft above to get started."} />
+            <EmptyState icon={PenLine} title="No content found" description={q || clientId || status || assignee !== "me" ? "Try adjusting your search or filters." : "Create a draft above to get started."} />
           ) : (
             <div className="overflow-hidden rounded-md border">
               <Table>

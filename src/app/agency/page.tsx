@@ -48,7 +48,7 @@ export default async function AgencyDashboardPage() {
   const stats = [
     { label: "Clients", value: clientCount?.value ?? 0, description: "Total client accounts", href: "/agency/clients", icon: Users, tint: "text-chart-2 bg-chart-2/10" },
     { label: "Open tasks", value: openTasks?.value ?? 0, description: "Open, in progress and blocked", href: "/agency/tasks?assignee=all", icon: FolderKanban, tint: "text-primary bg-primary/10" },
-    { label: "Open tickets", value: openTickets?.value ?? 0, description: "Support requests", href: "/agency/support", icon: LifeBuoy, tint: "text-chart-4 bg-chart-4/10" },
+    { label: "Open tickets", value: openTickets?.value ?? 0, description: "Support requests", href: "/agency/support?assignee=all", icon: LifeBuoy, tint: "text-chart-4 bg-chart-4/10" },
   ];
 
   const quickActions = [
