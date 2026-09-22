@@ -12,14 +12,17 @@ import { PageHeader } from "@/components/page-header";
 import { CreatePanel } from "@/components/create-panel";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
+import { SearchInput } from "@/components/search-input";
+import { TaskFilterSelect } from "@/app/agency/tasks/task-filter-select";
 import { db } from "@/db";
 import { clientAccounts, contentItems, contentTemplates } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
 import { CONTENT_STATUS_LABELS, type ContentStatus } from "@/lib/content";
 import { createContentItem } from "./actions";
 
-export default async function AgencyContentPage() {
+export default async function AgencyContentPage({ searchParams }: { searchParams: Promise<{ q?: string; clientId?: string; status?: string; assignedTo?: string }> }) {
   await requireAgencyUser();
+  const { q, clientId, status, assignedTo } = await searchParams;
   const [clients, templates, team, items] = await Promise.all([
     db.query.clientAccounts.findMany({ orderBy: desc(clientAccounts.name) }),
     db.query.contentTemplates.findMany({ where: eq(contentTemplates.archived, false), orderBy: desc(contentTemplates.createdAt) }),
@@ -28,6 +31,14 @@ export default async function AgencyContentPage() {
   ]);
   const clientName = (id: string) => clients.find((c) => c.id === id)?.name ?? "Unknown client";
   const assigneeName = (id: string | null) => (id ? team.find((t) => t.id === id)?.name ?? "—" : "Unassigned");
+  const query = (q ?? "").toLowerCase();
+  const filteredItems = items.filter(
+    (item) =>
+      (!clientId || item.clientAccountId === clientId) &&
+      (!status || item.status === status) &&
+      (!assignedTo || (assignedTo === "unassigned" ? !item.assignedToUserId : item.assignedToUserId === assignedTo)) &&
+      (!query || item.title.toLowerCase().includes(query) || clientName(item.clientAccountId).toLowerCase().includes(query)),
+  );
 
   return (
     <div className="space-y-6">
@@ -78,10 +89,20 @@ export default async function AgencyContentPage() {
       </Card></CreatePanel>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">All content</CardTitle></CardHeader>
+        <CardHeader className="gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle className="text-base">All content</CardTitle>
+            <div className="flex flex-wrap items-center gap-2">
+              <SearchInput placeholder="Search content…" />
+              <TaskFilterSelect paramKey="clientId" placeholder="All clients" options={[{ value: "", label: "All clients" }, ...clients.map((client) => ({ value: client.id, label: client.name }))]} />
+              <TaskFilterSelect paramKey="status" placeholder="All statuses" options={[{ value: "", label: "All statuses" }, ...Object.entries(CONTENT_STATUS_LABELS).map(([value, label]) => ({ value, label }))]} />
+              <TaskFilterSelect paramKey="assignedTo" placeholder="Anyone" options={[{ value: "", label: "Anyone" }, { value: "unassigned", label: "Unassigned" }, ...team.map((member) => ({ value: member.id, label: member.name || member.email }))]} />
+            </div>
+          </div>
+        </CardHeader>
         <CardContent>
-          {items.length === 0 ? (
-            <EmptyState icon={PenLine} title="No content yet" description="Create a draft above to get started." />
+          {filteredItems.length === 0 ? (
+            <EmptyState icon={PenLine} title="No content found" description={q || clientId || status || assignedTo ? "Try adjusting your search or filters." : "Create a draft above to get started."} />
           ) : (
             <div className="overflow-hidden rounded-md border">
               <Table>
@@ -95,7 +116,7 @@ export default async function AgencyContentPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {items.map((item) => (
+                  {filteredItems.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell className="max-w-72 whitespace-normal">
                         <Link href={`/agency/content/${item.id}`} className="font-medium hover:underline">{item.title}</Link>

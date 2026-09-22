@@ -12,6 +12,7 @@ import { SearchInput } from "@/components/search-input";
 import { Pagination } from "@/components/pagination";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { UploadForm } from "@/components/upload-form";
+import { TaskFilterSelect } from "@/app/agency/tasks/task-filter-select";
 import { db } from "@/db";
 import { clientAccounts, documents } from "@/db/schema";
 import { requireAgencyUser } from "@/lib/auth-helpers";
@@ -39,9 +40,9 @@ function fileIcon(name: string, type: string | null) {
   return FileIcon;
 }
 
-export default async function AgencyFilesPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; page?: string }> }) {
+export default async function AgencyFilesPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; clientId?: string; page?: string }> }) {
   await requireAgencyUser();
-  const { q, status, page } = await searchParams;
+  const { q, status, clientId, page } = await searchParams;
   const [clients, files] = await Promise.all([
     db.query.clientAccounts.findMany({ orderBy: desc(clientAccounts.name) }),
     db.query.documents.findMany({ orderBy: desc(documents.createdAt) }),
@@ -49,7 +50,7 @@ export default async function AgencyFilesPage({ searchParams }: { searchParams: 
   const clientName = (id: string) => clients.find((client) => client.id === id)?.name ?? "Unknown client";
   const query = (q ?? "").toLowerCase();
   const filtered = files.filter(
-    (file) => (!status || file.status === status) && (!query || file.title.toLowerCase().includes(query) || file.fileName.toLowerCase().includes(query) || clientName(file.clientAccountId).toLowerCase().includes(query)),
+    (file) => (!status || file.status === status) && (!clientId || file.clientAccountId === clientId) && (!query || file.title.toLowerCase().includes(query) || file.fileName.toLowerCase().includes(query) || clientName(file.clientAccountId).toLowerCase().includes(query)),
   );
   const currentPage = Math.max(1, Number(page) || 1);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -58,6 +59,7 @@ export default async function AgencyFilesPage({ searchParams }: { searchParams: 
   const filterHref = (value: string) => {
     const sp = new URLSearchParams();
     if (q) sp.set("q", q);
+    if (clientId) sp.set("clientId", clientId);
     if (value) sp.set("status", value);
     const search = sp.toString();
     return `/agency/files${search ? `?${search}` : ""}`;
@@ -77,7 +79,10 @@ export default async function AgencyFilesPage({ searchParams }: { searchParams: 
         <CardHeader className="gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <CardTitle className="text-base">Shared files</CardTitle>
-            <SearchInput placeholder="Search files…" />
+            <div className="flex flex-wrap items-center gap-2">
+              <SearchInput placeholder="Search files…" />
+              <TaskFilterSelect paramKey="clientId" placeholder="All clients" options={[{ value: "", label: "All clients" }, ...clients.map((client) => ({ value: client.id, label: client.name }))]} />
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {statuses.map(([value, label]) => (
