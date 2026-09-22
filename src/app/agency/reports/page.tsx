@@ -12,6 +12,9 @@ import { auditLogs, clientAccounts, documents, tasks, tickets } from "@/db/schem
 import { requireAgencyUser } from "@/lib/auth-helpers";
 import { hasPermission } from "@/lib/permissions";
 import { formatDuration, getStaffPerformanceReport } from "@/lib/staff-report";
+import { getOperationsReport } from "@/lib/operations-report";
+import { getTimeReport } from "@/lib/time-report";
+import { budgetUsage } from "@/lib/time-budget";
 import { redirect } from "next/navigation";
 
 function dateInput(date: Date) {
@@ -31,13 +34,15 @@ export default async function AgencyReportsPage({ searchParams }: { searchParams
   const rangeStart = from ? new Date(`${from}T00:00:00`) : new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   const rangeLabel = from || to ? `${dateInput(rangeStart)} – ${dateInput(rangeEnd)}` : "Last 30 days";
 
-  const [[clients], [tasksOpen], [docsPending], [ticketsOpen], audit, performance] = await Promise.all([
+  const [[clients], [tasksOpen], [docsPending], [ticketsOpen], audit, performance, operations, timeReport] = await Promise.all([
     db.select({ value: count() }).from(clientAccounts),
     db.select({ value: count() }).from(tasks).where(eq(tasks.status, "open")),
     db.select({ value: count() }).from(documents).where(eq(documents.status, "pending")),
     db.select({ value: count() }).from(tickets).where(eq(tickets.status, "open")),
     db.query.auditLogs.findMany({ where: conditions.length ? and(...conditions) : undefined, orderBy: desc(auditLogs.createdAt), limit: 25 }),
     getStaffPerformanceReport(rangeStart, rangeEnd),
+    getOperationsReport(rangeStart, rangeEnd),
+    getTimeReport(undefined, false),
   ]);
   const metrics = [{ label: "Client accounts", value: clients?.value ?? 0 }, { label: "Open tasks", value: tasksOpen?.value ?? 0 }, { label: "Pending approvals", value: docsPending?.value ?? 0 }, { label: "Open tickets", value: ticketsOpen?.value ?? 0 }];
   const exportHref = `/api/reports/audit-export${from || to ? `?${new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}) }).toString()}` : ""}`;
@@ -54,6 +59,11 @@ export default async function AgencyReportsPage({ searchParams }: { searchParams
   };
   const staffRows = [...performance.rows].sort((a, b) => sorters[sortKey](b) - sorters[sortKey](a));
   const sortLink = (key: string) => `/agency/reports?${new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}), sort: key }).toString()}`;
+
+  const clientBudgetRows = timeReport.rows
+    .map((row) => ({ client: row.client, usage: budgetUsage(row.budget?.allocatedSeconds ?? null, row.spent, row.start, row.end) }))
+    .filter((row) => row.usage.allocated !== null)
+    .sort((a, b) => b.usage.usedPercent - a.usage.usedPercent);
 
   return (
     <div className="space-y-6">
@@ -130,6 +140,79 @@ export default async function AgencyReportsPage({ searchParams }: { searchParams
                 <span className="font-mono text-sm tabular-nums">{row.count}</span>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Client budget health</CardTitle><CardDescription>This month · time spent vs. allocated hours</CardDescription></CardHeader>
+        <CardContent>
+          {clientBudgetRows.length === 0 ? <p className="text-sm text-muted-foreground">No clients have a time budget set for this month.</p> : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Client</TableHead>
+                    <TableHead className="text-right">Spent</TableHead>
+                    <TableHead className="text-right">Allocated</TableHead>
+                    <TableHead className="text-right">Used</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {clientBudgetRows.map(({ client, usage }) => (
+                    <TableRow key={client.id}>
+                      <TableCell className="font-medium">{client.name}</TableCell>
+                      <TableCell className="text-right font-mono tabular-nums">{formatDuration(usage.spent)}</TableCell>
+                      <TableCell className="text-right font-mono tabular-nums">{formatDuration(usage.allocated)}</TableCell>
+                      <TableCell className="text-right font-mono tabular-nums">{Math.round(usage.usedPercent)}%</TableCell>
+                      <TableCell>
+                        <Badge variant={usage.state === "over" ? "destructive" : usage.state === "exhausted" || usage.state === "near" ? "outline" : "secondary"} className="capitalize">
+                          {usage.state === "over" ? `${Math.round(usage.over / 60)}m over` : usage.state}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-2"><CardDescription>Content pipeline</CardDescription><CardTitle className="text-base">{rangeLabel}</CardTitle></CardHeader>
+          <CardContent className="space-y-1 text-sm">
+            <p>Published in range: <span className="font-semibold">{operations.contentPipeline.publishedInRange}</span></p>
+            <p>Avg cycle time: <span className="font-mono font-semibold">{formatDuration(operations.contentPipeline.avgCycleSeconds)}</span></p>
+            <div className="flex flex-wrap gap-1 pt-1">
+              {operations.contentPipeline.statusCounts.map((row) => <Badge key={row.status} variant="outline" className="capitalize">{row.status.replace(/_/g, " ")}: {row.count}</Badge>)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardDescription>Document approvals</CardDescription><CardTitle className="text-base">{rangeLabel}</CardTitle></CardHeader>
+          <CardContent className="space-y-1 text-sm">
+            <p>Pending now: <span className="font-semibold">{operations.approvalPipeline.pendingCount}</span></p>
+            <p>Decided in range: <span className="font-semibold">{operations.approvalPipeline.decidedInRange}</span></p>
+            <p>Avg turnaround: <span className="font-mono font-semibold">{formatDuration(operations.approvalPipeline.avgTurnaroundSeconds)}</span></p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardDescription>Task SLA</CardDescription><CardTitle className="text-base">{rangeLabel}</CardTitle></CardHeader>
+          <CardContent className="space-y-1 text-sm">
+            <p>Overdue now: <span className="font-semibold">{operations.taskSla.overdueCount}</span></p>
+            <p>Completed in range: <span className="font-semibold">{operations.taskSla.completedInRange}</span></p>
+            <p>Avg cycle time: <span className="font-mono font-semibold">{formatDuration(operations.taskSla.avgCycleSeconds)}</span></p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardDescription>Project delivery</CardDescription><CardTitle className="text-base">Current snapshot</CardTitle></CardHeader>
+          <CardContent className="space-y-1 text-sm">
+            <p>Active projects: <span className="font-semibold">{operations.projectDelivery.activeProjects}</span></p>
+            <p>Overdue milestones: <span className="font-semibold">{operations.projectDelivery.overdueMilestones}</span></p>
+            <p>Due within 7 days: <span className="font-semibold">{operations.projectDelivery.dueSoonMilestones}</span></p>
           </CardContent>
         </Card>
       </div>
